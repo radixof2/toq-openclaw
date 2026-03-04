@@ -120,4 +120,19 @@ describe("ensureReady", () => {
     expect(sp).toHaveBeenCalledWith("toq", ["up"], expect.any(Object));
     expect(result.bin).toBe("toq");
   });
+
+  it("throws if daemon fails to start within timeout", async () => {
+    const { ensureReady } = await loadSetup();
+    const exec = (await import("node:child_process")).execFileSync as any;
+    const fs = (await import("node:fs")).existsSync as any;
+
+    exec.mockImplementation(() => Buffer.from(""));
+    fs.mockImplementation((p: string) => {
+      if (p.endsWith("config.toml")) return true;
+      if (p.endsWith("state.json")) return false; // never becomes running
+      return false;
+    });
+
+    await expect(ensureReady()).rejects.toThrow("toq daemon failed to start");
+  }, 10000);
 });
