@@ -1,14 +1,14 @@
 import { connect } from "toq";
 
 const DEFAULT_API_URL = "http://127.0.0.1:9010";
-const CHANNEL_ID = "toq";
-const STREAM_CHUNK_TYPE = "message.stream.chunk";
-const STREAM_END_TYPE = "message.stream.end";
+export const CHANNEL_ID = "toq";
+export const STREAM_CHUNK_TYPE = "message.stream.chunk";
+export const STREAM_END_TYPE = "message.stream.end";
 
 /** Buffers stream chunks until StreamEnd arrives. */
-const streamBuffers = new Map<string, { from: string; text: string; threadId?: string }>();
+export const streamBuffers = new Map<string, { from: string; text: string; threadId?: string }>();
 
-const toqChannel = {
+export const toqChannel = {
   id: CHANNEL_ID,
   meta: {
     id: CHANNEL_ID,
@@ -61,7 +61,7 @@ export default function register(api: any) {
   });
 }
 
-function handleMessage(ctx: any, msg: any): void {
+export function handleMessage(ctx: any, msg: any): void {
   const body = msg.body as Record<string, unknown> | undefined;
 
   if (msg.type === STREAM_CHUNK_TYPE) {
@@ -93,7 +93,7 @@ function handleMessage(ctx: any, msg: any): void {
   }
 }
 
-function dispatch(ctx: any, from: string, text: string, threadId?: string): void {
+export function dispatch(ctx: any, from: string, text: string, threadId?: string): void {
   ctx.dispatchInboundMessage({
     channel: CHANNEL_ID,
     senderId: from,

@@ -7,14 +7,16 @@
   "bin": { "toq-relay": "dist/index.js" },
   "scripts": {
     "build": "tsc",
-    "dev": "tsc --watch"
+    "dev": "tsc --watch",
+    "test": "vitest run"
   },
   "dependencies": {
     "toq": ">=0.1.0"
   },
   "devDependencies": {
     "typescript": "^5.7",
-    "@types/node": "^22"
+    "@types/node": "^22",
+    "vitest": "^3.0"
   },
   "engines": { "node": ">=18" },
   "license": "Apache-2.0"
