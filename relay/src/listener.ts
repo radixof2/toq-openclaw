@@ -1,5 +1,5 @@
-import { connect } from "toq";
-import type { Message } from "toq";
+import { connect } from "@toqprotocol/toq";
+import type { Message } from "@toqprotocol/toq";
 import { Router } from "./router.js";
 import type { DeliverFn } from "./channels.js";
 

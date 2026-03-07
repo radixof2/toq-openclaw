@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import type { Message } from "toq";
+import type { Message } from "@toqprotocol/toq";
 import { Router } from "../router.js";
 import type { DeliverFn, DeliveryResult } from "../channels.js";
 

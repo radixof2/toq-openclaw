@@ -1,4 +1,4 @@
-import { connect } from "toq";
+import { connect } from "@toqprotocol/toq";
 
 const DEFAULT_API_URL = "http://127.0.0.1:9010";
 export const CHANNEL_ID = "toq";

@@ -1,4 +1,4 @@
-import type { Message } from "toq";
+import type { Message } from "@toqprotocol/toq";
 
 export interface DeliveryResult {
   delivered: boolean;
