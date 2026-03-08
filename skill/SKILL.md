@@ -20,30 +20,53 @@ toq status
 
 If this returns status information, toq is already set up. Skip to "Sending messages."
 
-If it errors or says not configured, run setup:
+If it errors or says not configured, follow these steps:
+
+### 1. Detect the correct host IP
+
+Determine whether this machine is on a cloud server or behind a home router:
 
 ```
-toq setup --non-interactive --agent-name=<name> --connection-mode=approval --adapter=http
+curl -s ifconfig.me
+```
+
+This returns the public IP. Compare it to the local IP:
+
+```
+hostname -I | awk '{print $1}'
+```
+
+If they differ, the machine is behind NAT (cloud server, VPS, or router). Use the public IP from `curl -s ifconfig.me` as the `--host` value. If they match, the machine has a direct public IP.
+
+On a home network where the agent only talks to other agents on the same LAN, use the local IP instead.
+
+### 2. Run setup
+
+```
+toq setup --non-interactive --agent-name=<name> --connection-mode=approval --adapter=http --host=<ip>
 ```
 
 Parameters:
-- `--agent-name`: your agent's name (lowercase, hyphens allowed, e.g. `recipe-bot`). This becomes part of your toq address.
+- `--agent-name`: the agent's name (lowercase, hyphens allowed, e.g. `recipe-bot`). This becomes part of the toq address.
 - `--connection-mode`: one of `open`, `allowlist`, `approval`, `dns-verified`. Always default to `approval` unless the user explicitly requests otherwise.
-- `--adapter`: message adapter, one of `http`, `stdin`, `unix`
+- `--adapter`: message adapter. Use `http`.
+- `--host`: the IP address other agents will use to reach this machine. On cloud servers, this must be the public IP.
 
-Do NOT run setup if toq is already configured. It will overwrite the existing config and keys.
+Do NOT run setup if toq is already configured. It will not overwrite existing config.
 
-After setup, start the daemon:
+### 3. Start the daemon
 
 ```
 toq up
 ```
 
-Verify everything works:
+### 4. Verify
 
 ```
 toq doctor
 ```
+
+Note: `toq doctor` may warn that port 9009 is in use. If the daemon is running, this is expected and not an error.
 
 ## Connection modes
 
@@ -51,6 +74,21 @@ toq doctor
 - `allowlist`: only pre-approved public keys can connect. Most restrictive.
 - `approval`: new agents must request approval. You decide who gets in. Recommended default.
 - `dns-verified`: agents must have valid DNS records. Good for organizations.
+
+## Changing configuration
+
+toq stores its config at `~/.toq/config.toml`. There is no live config command, so to change a setting:
+
+1. Stop the daemon: `toq down`
+2. Edit the config file. Key fields:
+   - `connection_mode` - "open", "allowlist", "approval", or "dns-verified"
+   - `host` - the IP or hostname other agents use to reach this machine
+   - `agent_name` - the agent's name in the toq address
+   - `port` - protocol port (default 9009)
+3. Start the daemon: `toq up`
+4. Verify with `toq status`
+
+Example: to change connection mode from open to approval, edit `~/.toq/config.toml` and change `connection_mode = "open"` to `connection_mode = "approval"`, then restart.
 
 ## Sending messages
 
@@ -65,7 +103,11 @@ If sending fails, common causes:
 - Target agent has not approved your connection yet
 - Target agent has blocked you
 - Wrong address (check hostname and agent name)
+- Target is on a cloud server and the address uses a private IP instead of the public IP
+- Port 9009 is not open in the target's firewall or security group
 - Your daemon is not running (check with `toq status`)
+
+When sending to an agent on a cloud server or VPS, always use their public IP, not their internal/private IP.
 
 ## Checking status
 
@@ -73,7 +115,7 @@ If sending fails, common causes:
 toq status
 ```
 
-Shows daemon status, your toq address, connection mode, peer count, and pending approval requests.
+Shows daemon status, your toq address, connection mode, message counts, and connection count.
 
 ## Approvals
 
@@ -87,7 +129,7 @@ toq approvals
 
 This shows each pending request with the full public key, address, and request time.
 
-Approve a request (use the full public key from `toq approvals` output):
+Approve a request (use the full public key from `toq approvals` output, including the `ed25519:` prefix):
 
 ```
 toq approve <public-key>
@@ -99,17 +141,19 @@ Deny a request:
 toq deny <public-key>
 ```
 
-In `allowlist` mode, use `toq approve <public-key>` to pre-approve agents before they connect.
+Known issue: if the approve command returns "unknown error", the public key may contain characters that break the command. As a workaround, temporarily switch to `open` mode (edit config, restart), have the agent reconnect, then switch back to `approval` mode.
 
 ## Peer management
 
-List connected peers:
+List known peers:
 
 ```
 toq peers
 ```
 
-Block an agent by address or public key (must be exact match from `toq peers` output):
+Note: peers only appear here after they have connected inbound. Agents you have only sent messages to may not appear.
+
+Block an agent by address or public key:
 
 ```
 toq block <address-or-public-key>
@@ -133,13 +177,11 @@ If the daemon is already running, `toq up` will report that. Check with `toq sta
 
 ## Listening for messages
 
-```
-toq listen
-```
-
-WARNING: This command blocks indefinitely and cannot be interrupted by the agent. Do not run `toq listen` from the agent. It is only useful when the user runs it manually in a terminal. For real-time message handling, use the toq relay or channel plugin instead.
+WARNING: `toq listen` blocks indefinitely and cannot be interrupted by the agent. Do not run `toq listen`. It is only useful when the user runs it manually in a terminal.
 
 `toq logs --follow` also blocks indefinitely. Use `toq logs` (without --follow) to see recent log entries.
+
+To check if messages have arrived, use `toq status` and look at the `messages in` count.
 
 ## Key management
 
@@ -149,11 +191,15 @@ Export keys, config, and peer list as an encrypted backup:
 toq export <path>
 ```
 
+This command requires a TTY to prompt for a passphrase. It cannot run non-interactively. Tell the user to run it manually in their terminal.
+
 Restore from an encrypted backup:
 
 ```
 toq import <path>
 ```
+
+This also requires a TTY for the passphrase prompt.
 
 Rotate keys and broadcast to connected peers:
 
@@ -177,6 +223,52 @@ Delete all audit logs:
 toq clear-logs
 ```
 
+## Message handlers
+
+The user can define how incoming messages should be processed. Since toq messages arrive at the daemon and are available via the local API, you can set up handlers by writing a small script that listens for messages and takes action.
+
+To create a handler, write a script at a location the user specifies (e.g. `~/.toq/handler.sh`) that:
+1. Uses `curl -s -N http://127.0.0.1:9010/v1/messages` to listen for incoming messages via SSE
+2. Parses each `data:` line as JSON
+3. Checks the `from`, `type`, and `body.text` fields
+4. Takes the action the user described
+
+Example: "When I get a message from alice about invoices, save it to ~/invoices.log"
+
+```bash
+#!/bin/bash
+curl -s -N http://127.0.0.1:9010/v1/messages | while read -r line; do
+  if [[ "$line" == data:* ]]; then
+    json="${line#data: }"
+    from=$(echo "$json" | jq -r '.from // empty')
+    text=$(echo "$json" | jq -r '.body.text // empty')
+    type=$(echo "$json" | jq -r '.type // empty')
+    if [[ "$type" == "message.send" ]] && [[ "$from" == *"alice"* ]] && echo "$text" | grep -qi "invoice"; then
+      echo "[$(date)] From: $from - $text" >> ~/invoices.log
+    fi
+  fi
+done
+```
+
+To run the handler in the background:
+
+```bash
+nohup bash ~/.toq/handler.sh > /dev/null 2>&1 &
+```
+
+Adapt the filtering and action to whatever the user asks for. The SSE stream provides all incoming messages as JSON with fields: `id`, `from`, `type`, `body`, `thread_id`, `timestamp`.
+
+For handlers that need to reply, use `toq send` inside the script:
+
+```bash
+toq send "$from" "Got your invoice, processing now."
+```
+
+When creating handlers, always confirm with the user:
+- What messages to match (sender, keywords, all messages)
+- What action to take (log, forward, reply, run a command)
+- Whether to run it in the background
+
 ## Security
 
 This section is critical. Read it before helping the user set up toq.
@@ -197,11 +289,11 @@ Never suggest `open` mode unless the user specifically asks for a public-facing 
 This is the most important security consideration. OpenClaw's `exec` tool can run shell commands on the host. When a remote agent sends a toq message, that message content reaches the AI. If exec is enabled without approval mode, the AI could be influenced by message content to run commands.
 
 Mitigations to recommend:
-1. Enable OpenClaw's exec approval mode in your OpenClaw configuration so every command requires human confirmation before execution
+1. Enable OpenClaw's exec approval mode so every command requires human confirmation
 2. Use toq's `approval` or `allowlist` connection mode so only trusted agents can send messages
 3. Both protections together provide defense in depth
 
-If the user has exec enabled without approval mode, strongly recommend they enable it before opening toq connections. This is not optional for security-conscious setups.
+If the user has exec enabled without approval mode, strongly recommend they enable it before opening toq connections.
 
 ### Network exposure
 
@@ -209,7 +301,6 @@ Port 9009 is the toq protocol port. When `toq up` runs, it listens on this port.
 
 - On a home network behind NAT: relatively safe, not reachable from the internet without port forwarding
 - On a VPS or cloud server with a public IP: port 9009 is exposed to the internet. Any agent can attempt to connect.
-- On a Mac Mini at home with port forwarding: same as a public server
 
 If the user is on a public IP, recommend:
 1. Use a firewall to restrict port 9009 to known IPs if possible
@@ -218,21 +309,19 @@ If the user is on a public IP, recommend:
 
 ### DNS setup
 
-Setting up DNS makes the agent discoverable at a human-readable address like `toq://myserver.com/assistant`. This is convenient but also means anyone who knows the domain can attempt to connect.
+Setting up DNS makes the agent discoverable at a human-readable address like `toq://myserver.com/assistant`.
 
 To set up DNS:
-1. Add an A or AAAA record pointing the domain to the server's IP
-2. Verify your current hostname with `toq status` and confirm it matches the DNS domain
-3. The toq address becomes `toq://domain/agent-name`
-4. Other agents can now connect using that address
+1. Add an A or AAAA record pointing the domain to the server's public IP
+2. The toq address becomes `toq://domain/agent-name`
+3. Other agents can now connect using that address
 
 Before setting up DNS, make sure:
 - Connection mode is `approval` or stricter
 - The user understands their agent becomes discoverable
 - Firewall rules are in place if needed
-- Exec approval mode is enabled in OpenClaw
 
-If the user just wants to talk to one or two known agents, DNS is not required. They can use the IP address directly: `toq://192.168.1.50/agent-name`.
+If the user just wants to talk to one or two known agents, DNS is not required. They can use the IP address directly.
 
 ### Local API port
 
@@ -248,7 +337,7 @@ Recommend rotating keys periodically with `toq rotate-keys`, especially after:
 ### Monitoring
 
 Recommend the user periodically checks:
-- `toq status` for pending approval requests and connected peers
+- `toq status` for message counts and connection mode
 - `toq logs` for unusual connection attempts
 - `toq peers` to verify only expected agents are connected
 
@@ -262,3 +351,5 @@ Recommend the user periodically checks:
 - "Send a message to X" -> `toq send toq://host/name "message"`
 - "Block that agent" -> get identifier from `toq peers`, then `toq block <address-or-key>`
 - "Is toq running?" -> `toq status` or `toq doctor`
+- "Change connection mode" -> edit `~/.toq/config.toml`, change `connection_mode`, then `toq down` and `toq up`
+- "Set up a message handler" -> write a script using the SSE API at `http://127.0.0.1:9010/v1/messages`
