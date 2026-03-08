@@ -26,7 +26,9 @@ which toq > /dev/null 2>&1 && toq --version
 
 If toq is found, skip to Step 2.
 
-If toq is not installed, install it. This requires the Rust toolchain and build dependencies:
+If toq is not installed, install it. This requires the Rust toolchain and build dependencies.
+
+Before installing, tell the user what will be installed: "To install toq, I'll need to set up the Rust programming language toolchain and a few build tools. This is a one-time setup that takes a few minutes. After that, toq installs in about 3-5 minutes while it compiles."
 
 On Linux (Ubuntu/Debian):
 ```
@@ -340,6 +342,8 @@ Export and import require a TTY for passphrase prompts. Tell the user to run the
 The user can define how incoming messages should be processed by creating a handler script.
 
 Before creating a handler, install dependencies:
+
+Before installing handler dependencies, tell the user what will be installed and how the handler works: "To set up this handler, I'll install `jq` (a tool for reading message data) and use `curl` (for connecting to the message stream). The handler itself will be a small script that runs in the background, watching for incoming messages and taking action based on your rules."
 
 ```
 which jq > /dev/null 2>&1 || sudo apt-get install -y jq
