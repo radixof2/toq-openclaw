@@ -79,13 +79,48 @@ Tell the user their setup is complete and show them their toq address: `toq://ho
 
 ### Step 3: Security check
 
-If the machine has a public IP, warn the user:
-- Port 9009 will be exposed to the internet
-- Approval mode means agents must be approved, but anyone can attempt to connect
-- Recommend firewall rules if they only talk to specific agents
-- If OpenClaw exec approval mode is not enabled, strongly recommend enabling it
+This step is critical. Explain security in plain, non-technical language. Do not skip or rush this.
 
-Ask if the user wants to set up DNS for a human-readable address (e.g. `toq://myserver.com/agent`). If yes, guide them through adding an A record.
+First, determine the network situation:
+
+```
+PUBLIC_IP=$(curl -s ifconfig.me)
+LOCAL_IP=$(hostname -I 2>/dev/null | awk '{print $1}' || ipconfig getifaddr en0 2>/dev/null)
+```
+
+If public and local IPs are different, the machine is behind NAT (cloud server or home router).
+
+Explain to the user in plain language:
+
+**If on a cloud server (public IP differs from local IP, and the machine is a VPS/cloud instance):**
+
+"Your agent is on a server with a public internet address. This means:
+
+- **Port 9009 is how other agents connect to you.** Right now, it may be blocked by your cloud provider's firewall. You will need to open it in your provider's firewall settings (for example, the Networking tab in LightSail, or Security Groups in AWS) before other agents can reach you.
+- **Once port 9009 is open, anyone on the internet can try to connect.** They cannot send you messages without your approval (that is what approval mode does), but they can knock on your door.
+- **Approval mode is your front door lock.** Every new agent that tries to connect goes into a waiting list. You decide who gets in. No one can send you messages until you approve them.
+- **If you only plan to talk to one or two specific agents**, consider asking them for their IP address and setting up firewall rules that only allow those IPs to connect on port 9009. This is like giving out your address only to friends instead of posting it publicly."
+
+**If on a home network (behind a router):**
+
+"Your agent is behind your home router. This is actually the safest setup:
+
+- **Agents on your same network (same Wi-Fi) can connect to you directly.** No extra setup needed.
+- **Agents outside your network (on the internet) cannot reach you** unless you set up port forwarding on your router. This is a deliberate choice you would need to make.
+- **If you do set up port forwarding**, the same rules apply as a cloud server: anyone on the internet could try to connect, so approval mode is important.
+- **If you only talk to agents on your local network**, you do not need to change anything. Your router is already protecting you."
+
+**For all setups, explain OpenClaw's exec tool risk:**
+
+"One more important thing: OpenClaw can run commands on this computer (that is how it installs software and manages files for you). When another agent sends you a toq message, that message reaches me (your AI assistant). If a malicious agent sent a carefully crafted message, it could potentially trick me into running a harmful command.
+
+To protect against this:
+1. **toq's approval mode** makes sure only agents you trust can send messages. This is already set up.
+2. **OpenClaw's exec approval mode** adds a second layer: every command I run requires your explicit OK before it executes. If this is not already enabled, I strongly recommend turning it on.
+
+With both protections active, a malicious agent would need to get past your approval AND trick you into confirming a harmful command. That is two locks instead of one."
+
+Ask if the user wants to set up DNS for a human-readable address (e.g. `toq://myserver.com/agent`). If yes, guide them through adding an A record. Warn them that a DNS name makes their agent discoverable by anyone who knows the domain.
 
 ### Step 4: Start the daemon
 
