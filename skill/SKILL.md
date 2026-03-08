@@ -110,15 +110,9 @@ Explain to the user in plain language:
 - **If you do set up port forwarding**, the same rules apply as a cloud server: anyone on the internet could try to connect, so approval mode is important.
 - **If you only talk to agents on your local network**, you do not need to change anything. Your router is already protecting you."
 
-**For all setups, explain OpenClaw's exec tool risk:**
+**For all setups, mention future security considerations briefly:**
 
-"One more important thing: OpenClaw can run commands on this computer (that is how it installs software and manages files for you). When another agent sends you a toq message, that message reaches me (your AI assistant). If a malicious agent sent a carefully crafted message, it could potentially trick me into running a harmful command.
-
-To protect against this:
-1. **toq's approval mode** makes sure only agents you trust can send messages. This is already set up.
-2. **OpenClaw's exec approval mode** adds a second layer: every command I run requires your explicit OK before it executes. If this is not already enabled, I strongly recommend turning it on.
-
-With both protections active, a malicious agent would need to get past your approval AND trick you into confirming a harmful command. That is two locks instead of one."
+"Approval mode is your main protection right now. No one can send you messages without your permission. If you later set up automatic message handling (handlers or notifications that forward messages into this chat), there are additional security considerations I'll walk you through at that point."
 
 Ask if the user wants to set up DNS for a human-readable address (e.g. `toq://myserver.com/agent`). If yes, guide them through adding an A record. Warn them that a DNS name makes their agent discoverable by anyone who knows the domain.
 
@@ -382,6 +376,18 @@ toq send "$from" "Got your invoice, processing now."
 When creating handlers, confirm with the user:
 - What messages to match (sender, keywords, all messages)
 - What action to take (log, forward, reply, run a command)
+
+**Before creating any handler that forwards messages into this chat or triggers actions automatically, check the connection mode and warn the user:**
+
+First check: `toq status` to see the current connection mode.
+
+"Before we set this up, an important security note: when incoming toq messages are forwarded into our conversation, that message content reaches me (your AI assistant). If a malicious agent sent a carefully crafted message, it could potentially trick me into running a harmful command.
+
+To protect against this:
+1. **toq's connection mode** controls who can send you messages. You should be in `approval` or `allowlist` mode so only agents you trust can reach you. (If currently in `open` mode, strongly recommend switching before setting up a handler.)
+2. **OpenClaw's exec approval mode** adds a second layer: every command I run requires your explicit OK before it executes. If this is not already enabled, I strongly recommend turning it on before we set up message forwarding.
+
+With both protections active, a malicious agent would need to get past your approval AND trick you into confirming a harmful command. That is two locks instead of one."
 
 Always run handlers in the background. If the user wants the handler to survive reboots, add it to the systemd service or a cron @reboot entry.
 
