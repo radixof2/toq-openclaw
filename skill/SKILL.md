@@ -56,12 +56,14 @@ Ask the user for their agent name. Suggest a name based on context (e.g. "assist
 Detect the correct host IP:
 
 ```
-PUBLIC_IP=$(curl -s ifconfig.me)
+PUBLIC_IP=$(curl -4 -s ifconfig.me)
 LOCAL_IP=$(hostname -I 2>/dev/null | awk '{print $1}' || ipconfig getifaddr en0 2>/dev/null)
 echo "Public: $PUBLIC_IP Local: $LOCAL_IP"
 ```
 
 If public and local IPs differ, the machine is behind NAT. Use the public IP. Tell the user which IP will be used and why.
+
+Note: always use `-4` with curl to get the IPv4 address. IPv4 is more universally reachable than IPv6. If the machine only has IPv6, the command will fail and you should fall back to `curl -s ifconfig.me`.
 
 Explain connection modes to the user in plain language:
 - **Approval mode** (recommended): "Other agents need your permission before they can talk to you. You approve or deny each one."
@@ -84,7 +86,7 @@ This step is critical. Explain security in plain, non-technical language. Do not
 First, determine the network situation:
 
 ```
-PUBLIC_IP=$(curl -s ifconfig.me)
+PUBLIC_IP=$(curl -4 -s ifconfig.me)
 LOCAL_IP=$(hostname -I 2>/dev/null | awk '{print $1}' || ipconfig getifaddr en0 2>/dev/null)
 ```
 
