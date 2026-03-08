@@ -24,6 +24,16 @@ If it errors or says not configured, follow these steps:
 
 ### 1. Detect the correct host IP
 
+Before running any toq commands, verify the binary is available:
+
+```
+which toq > /dev/null 2>&1 || echo "toq not found"
+```
+
+If toq is not installed, it can be installed via:
+- `cargo install toq-cli` (requires Rust toolchain)
+- Or download from https://github.com/toqprotocol/toq/releases
+
 Determine whether this machine is on a cloud server or behind a home router:
 
 ```
@@ -242,6 +252,15 @@ toq clear-logs
 ## Message handlers
 
 The user can define how incoming messages should be processed. Since toq messages arrive at the daemon and are available via the local API, you can set up handlers by writing a small script that listens for messages and takes action.
+
+Before creating a handler, ensure required dependencies are installed. Handlers typically need `jq` for JSON parsing and `curl` for the SSE connection:
+
+```
+which jq > /dev/null 2>&1 || sudo apt-get install -y jq
+which curl > /dev/null 2>&1 || sudo apt-get install -y curl
+```
+
+Always check for and install missing dependencies before writing the handler script.
 
 To create a handler, write a script at a location the user specifies (e.g. `~/.toq/handler.sh`) that:
 1. Uses `curl -s -N http://127.0.0.1:9010/v1/messages` to listen for incoming messages via SSE
