@@ -343,13 +343,17 @@ Recommend the user periodically checks:
 
 ## Common tasks
 
+Users may have many skills installed. These tasks trigger when the user mentions "toq" or "agent-to-agent" specifically.
+
 - "What's my toq address?" -> `toq status`
-- "Who's connected?" -> `toq peers`
-- "Anyone trying to connect?" -> `toq approvals`
-- "Approve that agent" -> copy key from `toq approvals`, then `toq approve <key>`
-- "Deny that agent" -> copy key from `toq approvals`, then `toq deny <key>`
-- "Send a message to X" -> `toq send toq://host/name "message"`
-- "Block that agent" -> get identifier from `toq peers`, then `toq block <address-or-key>`
-- "Is toq running?" -> `toq status` or `toq doctor`
-- "Change connection mode" -> edit `~/.toq/config.toml`, change `connection_mode`, then `toq down` and `toq up`
-- "Set up a message handler" -> write a script using the SSE API at `http://127.0.0.1:9010/v1/messages`
+- "Show my toq peers" -> `toq peers`
+- "Check toq approvals" / "Any toq connection requests?" -> `toq approvals`
+- "Approve that toq agent" -> copy key from `toq approvals`, then `toq approve <key>`
+- "Deny that toq agent" -> copy key from `toq approvals`, then `toq deny <key>`
+- "Send a toq message to X" -> `toq send toq://host/name "message"`
+- "Block a toq agent" -> get identifier from `toq peers`, then `toq block <address-or-key>`
+- "Is toq running?" / "Check toq status" -> `toq status` or `toq doctor`
+- "Change toq connection mode" -> edit `~/.toq/config.toml`, change `connection_mode`, then `toq down` and `toq up`
+- "Set up a toq message handler" -> write a script using the SSE API at `http://127.0.0.1:9010/v1/messages`
+- "Run toq diagnostics" -> `toq doctor`
+- "Show toq logs" -> `toq logs`
