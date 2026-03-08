@@ -53,7 +53,22 @@ toq --version
 
 Tell the user toq is installed and explain what it does: "toq lets your agent communicate securely with other agents. I'll now help you set up your agent identity."
 
-### Step 2: Configure the agent
+### Step 2: Choose setup type
+
+Ask the user: "Would you like a quick setup with recommended defaults, or a custom setup where you can configure DNS, port, connection limits, and other settings?"
+
+**Quick setup** (recommended for most users):
+- Detects the correct IP automatically
+- Uses approval mode
+- Default port 9009
+- Starts the service immediately
+- Skip to "Step 3: Quick setup"
+
+**Custom setup** (for users who want control):
+- Walks through each setting before starting
+- Skip to "Step 4: Custom setup"
+
+### Step 3: Quick setup
 
 Ask the user for their agent name. Suggest a name based on context (e.g. "assistant", "home-agent", "support-bot"). Names must be lowercase, hyphens allowed.
 
@@ -69,21 +84,77 @@ If public and local IPs differ, the machine is behind NAT. Use the public IP. Te
 
 Note: always use `-4` with curl to get the IPv4 address. IPv4 is more universally reachable than IPv6. If the machine only has IPv6, the command will fail and you should fall back to `curl -s ifconfig.me`.
 
-Explain connection modes to the user in plain language:
-- **Approval mode** (recommended): "Other agents need your permission before they can talk to you. You approve or deny each one."
-- **Open mode**: "Any agent can connect and send messages. Only use this if you want a public-facing service."
-- **Allowlist mode**: "Only agents you pre-approve can connect. Most restrictive."
-
-Default to approval mode unless the user asks for something else.
-
 Run setup:
 ```
 toq setup --non-interactive --agent-name=<name> --connection-mode=approval --adapter=http --host=<ip>
 ```
 
-Tell the user their setup is complete and show them their toq address: `toq://host/agent-name`
+Start the service:
+```
+toq up
+```
 
-### Step 3: Security check
+Verify:
+```
+toq doctor
+```
+
+Note: `toq doctor` may report port 9009 as "in use by the toq service". This is normal.
+
+Show the user their address and status, then proceed to the security check (Step 5).
+
+### Step 4: Custom setup
+
+Ask the user for their agent name. Suggest a name based on context. Names must be lowercase, hyphens allowed.
+
+Detect the correct host IP (same as quick setup above).
+
+Then walk through each setting one at a time:
+
+**Connection mode:**
+Explain in plain language:
+- **Approval mode** (recommended): "Other agents need your permission before they can talk to you."
+- **Open mode**: "Any agent can connect. Only for public-facing services."
+- **Allowlist mode**: "Only agents you pre-approve can connect. Most restrictive."
+
+**DNS (optional):**
+Ask if the user wants a human-readable address like `toq://myserver.com/agent` instead of an IP address. If yes:
+1. Guide them through adding an A record pointing their domain to the server's public IP
+2. Use the domain name as the `--host` value instead of the IP
+3. Warn that a DNS name makes the agent discoverable by anyone who knows the domain
+
+**Port:**
+Default is 9009. Ask if they want to change it. Most users should keep the default.
+
+**Message history:**
+Default keeps the last 1000 messages. Ask if they want more or fewer. Explain: "This controls how many past messages you can look back through."
+
+**Other settings** (only mention if the user asks for more):
+- `max_connections` - how many agents can connect simultaneously (default 1000)
+- `heartbeat_interval` - how often to check if connections are alive (default 30s)
+- `ack_timeout` - how long to wait for message acknowledgment (default 10s)
+- `graceful_shutdown_timeout` - how long to wait for in-flight messages on shutdown (default 60s)
+
+Run setup with the chosen values:
+```
+toq setup --non-interactive --agent-name=<name> --connection-mode=<mode> --adapter=http --host=<host>
+```
+
+If the user chose non-default values for port, history, or other settings, edit `~/.toq/config.toml` after setup to apply them. Changes must be made before starting the service since there is no live reload.
+
+Start the service:
+```
+toq up
+```
+
+Verify:
+```
+toq doctor
+```
+
+Proceed to the security check (Step 5).
+
+### Step 5: Security check
 
 This step is critical. Explain security in plain, non-technical language. Do not skip or rush this.
 
@@ -120,20 +191,7 @@ Explain to the user in plain language:
 
 "Approval mode is your main protection right now. No one can send you messages without your permission. If you later set up automatic message handling (handlers or notifications that forward messages into this chat), there are additional security considerations I'll walk you through at that point."
 
-Ask if the user wants to set up DNS for a human-readable address (e.g. `toq://myserver.com/agent`). If yes, guide them through adding an A record. Warn them that a DNS name makes their agent discoverable by anyone who knows the domain.
-
-### Step 4: Start the service
-
-```
-toq up
-```
-
-Verify:
-```
-toq doctor
-```
-
-Note: `toq doctor` may report port 9009 as "in use by the toq service". This is normal.
+### Step 6: What's next
 
 Show the user their full status:
 ```
@@ -144,6 +202,7 @@ Present the user with what they can do next:
 - **"Send a test message"** to another agent to verify everything works
 - **"Set up a message handler"** to automatically process incoming messages (log them, reply, forward, etc.)
 - **"Configure my allowlist"** to pre-approve specific agents
+- **"Customize my settings"** to change address, port, message history, or connection limits (requires restart)
 - **"Set up auto-start"** so toq starts automatically on reboot
 - **"Set up notifications"** so incoming toq messages appear in this chat
 
@@ -151,7 +210,7 @@ Also mention the emergency shutdown option: "If you ever need to quickly take to
 
 Important: never tell the user to run terminal commands. Instead, tell them what to ask you in natural language. For example, say "just ask me to check your toq approvals" instead of "run `toq approvals`". You handle the commands, the user talks to you.
 
-### Step 5 (optional): Auto-start on reboot
+### Step 7 (optional): Auto-start on reboot
 
 If the user wants toq to start automatically:
 
@@ -220,7 +279,7 @@ Tell the user the service is stopped and port 9009 is no longer listening.
 
 ## Changing configuration
 
-toq stores its config at `~/.toq/config.toml`. There is no live config command, so to change a setting:
+toq stores its config at `~/.toq/config.toml`. There is no live reload, so to change a setting:
 
 1. Stop the service: `toq down`
 2. Edit the config file. Key fields:
@@ -231,6 +290,8 @@ toq stores its config at `~/.toq/config.toml`. There is no live config command, 
    - `message_history_limit` - max messages stored (default 1000)
 3. Start the service: `toq up`
 4. Verify with `toq status`
+
+When explaining config changes to the user, warn them: "Changing settings requires restarting the toq service. This will drop all current connections. Other agents will need to reconnect the next time they send you a message. Any messages sent to you while the service is down will not be received."
 
 ## Sending messages
 
