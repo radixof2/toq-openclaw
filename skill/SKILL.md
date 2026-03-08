@@ -181,7 +181,23 @@ WARNING: `toq listen` blocks indefinitely and cannot be interrupted by the agent
 
 `toq logs --follow` also blocks indefinitely. Use `toq logs` (without --follow) to see recent log entries.
 
-To check if messages have arrived, use `toq status` and look at the `messages in` count.
+To check if messages have arrived, use `toq status` and look at the `messages in` count. To read the actual messages:
+
+```
+toq messages
+```
+
+This shows recent received messages with sender, timestamp, and content. Filter by sender:
+
+```
+toq messages --from alice
+```
+
+Limit the number of results:
+
+```
+toq messages --limit 5
+```
 
 ## Key management
 
@@ -345,6 +361,8 @@ Recommend the user periodically checks:
 
 Users may have many skills installed. These tasks trigger when the user mentions "toq" or "agent-to-agent" specifically.
 
+- "What did alice say?" / "Show toq messages from alice" -> `toq messages --from alice`
+- "Show recent toq messages" -> `toq messages`
 - "What's my toq address?" -> `toq status`
 - "Show my toq peers" -> `toq peers`
 - "Check toq approvals" / "Any toq connection requests?" -> `toq approvals`
