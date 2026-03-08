@@ -14,6 +14,8 @@ toq is a secure agent-to-agent communication protocol. It lets your agent talk d
 
 When the user asks to set up toq or agent-to-agent communication, follow this flow in order. Guide the user through each step conversationally. Do not dump all steps at once.
 
+Before anything else, tell the user: "Just a heads up: toq is brand new and still in alpha. It's great for experimenting and testing agent-to-agent communication, but I wouldn't rely on it for anything important yet. The protocol and tools are still evolving, so avoid sending personal or sensitive data through it for now."
+
 ### Step 1: Install toq
 
 Check if toq is already installed:
@@ -118,7 +120,7 @@ Explain to the user in plain language:
 
 Ask if the user wants to set up DNS for a human-readable address (e.g. `toq://myserver.com/agent`). If yes, guide them through adding an A record. Warn them that a DNS name makes their agent discoverable by anyone who knows the domain.
 
-### Step 4: Start the daemon
+### Step 4: Start the service
 
 ```
 toq up
@@ -129,7 +131,7 @@ Verify:
 toq doctor
 ```
 
-Note: `toq doctor` may report port 9009 as "in use by daemon". This is normal.
+Note: `toq doctor` may report port 9009 as "in use by the toq service". This is normal.
 
 Show the user their full status:
 ```
@@ -143,7 +145,9 @@ Present the user with what they can do next:
 - **"Set up auto-start"** so toq starts automatically on reboot
 - **"Set up notifications"** so incoming toq messages appear in this chat
 
-Also mention the emergency shutdown option: "If you ever need to quickly take toq offline, just say 'shut down toq' and I'll stop the daemon immediately."
+Also mention the emergency shutdown option: "If you ever need to quickly take toq offline, just tell me 'shut down toq' and I'll stop the service immediately."
+
+Important: never tell the user to run terminal commands. Instead, tell them what to ask you in natural language. For example, say "just ask me to check your toq approvals" instead of "run `toq approvals`". You handle the commands, the user talks to you.
 
 ### Step 5 (optional): Auto-start on reboot
 
@@ -197,13 +201,13 @@ If the user says "shut down toq", "kill toq", "stop toq", or "emergency stop":
 toq down
 ```
 
-Confirm the daemon is stopped. If `toq down` fails:
+Confirm the service is stopped. If `toq down` fails:
 ```
 pkill -f "toq.*daemon"
 rm -f ~/.toq/toq.pid
 ```
 
-Tell the user the daemon is stopped and port 9009 is no longer listening.
+Tell the user the service is stopped and port 9009 is no longer listening.
 
 ## Connection modes
 
@@ -216,14 +220,14 @@ Tell the user the daemon is stopped and port 9009 is no longer listening.
 
 toq stores its config at `~/.toq/config.toml`. There is no live config command, so to change a setting:
 
-1. Stop the daemon: `toq down`
+1. Stop the service: `toq down`
 2. Edit the config file. Key fields:
    - `connection_mode` - "open", "allowlist", "approval", or "dns-verified"
    - `host` - the IP or hostname other agents use to reach this machine
    - `agent_name` - the agent's name in the toq address
    - `port` - protocol port (default 9009)
    - `message_history_limit` - max messages stored (default 1000)
-3. Start the daemon: `toq up`
+3. Start the service: `toq up`
 4. Verify with `toq status`
 
 ## Sending messages
@@ -239,7 +243,7 @@ If sending fails, common causes:
 - Wrong address (check hostname and agent name)
 - Target is on a cloud server and the address uses a private IP instead of the public IP
 - Port 9009 is not open in the target's firewall or security group
-- Your daemon is not running (check with `toq status`)
+- Your toq service is not running (check with `toq status`)
 
 ## Reading messages
 
@@ -266,6 +270,12 @@ toq status
 ```
 
 ## Approvals
+
+When explaining approvals to the user, use plain language:
+- "When a new agent tries to talk to you, they go into a waiting list. I'll let you know when someone is waiting."
+- "You can ask me anytime if anyone is trying to connect."
+- "Once you approve someone, they can send you messages freely."
+- "If you change your mind later, just tell me to block them."
 
 List pending approval requests:
 
