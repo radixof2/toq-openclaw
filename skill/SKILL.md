@@ -216,7 +216,7 @@ If the user wants toq to start automatically:
 
 On Linux with systemd:
 ```
-cat > /tmp/toq.service << 'EOF'
+cat > /tmp/toq.service << EOF
 [Unit]
 Description=toq protocol daemon
 After=network.target
@@ -384,7 +384,7 @@ Unblock:
 toq unblock <address-or-public-key>
 ```
 
-## Daemon management
+## Service management
 
 Start: `toq up`
 Stop: `toq down`
