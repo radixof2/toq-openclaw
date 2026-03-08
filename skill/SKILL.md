@@ -358,6 +358,12 @@ Deny a request:
 toq deny <public-key>
 ```
 
+Revoke a previously approved agent (removes from allowed list without blocking, they would need to request approval again):
+
+```
+toq revoke <public-key>
+```
+
 ## Peer management
 
 List known peers:
@@ -518,6 +524,7 @@ Users may have many skills installed. These tasks trigger when the user mentions
 - "Check toq approvals" / "Any toq connection requests?" -> `toq approvals`
 - "Approve that toq agent" -> copy key from `toq approvals`, then `toq approve <key>`
 - "Deny that toq agent" -> copy key from `toq approvals`, then `toq deny <key>`
+- "Revoke a toq agent's access" -> copy key from `toq peers`, then `toq revoke <key>`
 - "Send a toq message to X" -> `toq send toq://host/name "message"`
 - "Block a toq agent" -> get identifier from `toq peers`, then `toq block <address-or-key>`
 - "Is toq running?" / "Check toq status" -> `toq status` or `toq doctor`
