@@ -1,10 +1,6 @@
 {
   "id": "toq-channel",
-  "name": "toq protocol",
-  "version": "0.1.0",
-  "description": "Secure agent-to-agent communication via toq protocol",
-  "author": "toqprotocol",
-  "license": "Apache-2.0",
+  "channels": ["toq"],
   "configSchema": {
     "type": "object",
     "additionalProperties": false,
