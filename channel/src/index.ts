@@ -36,31 +36,6 @@ export const toqChannel = {
   },
 };
 
-export default function register(api: any) {
-  api.registerChannel({ plugin: toqChannel });
-
-  api.registerService({
-    id: "toq-listener",
-    start: async (ctx: any) => {
-      const apiUrl =
-        ctx.config?.channels?.toq?.apiUrl ?? DEFAULT_API_URL;
-      const client = connect(apiUrl);
-
-      while (true) {
-        try {
-          for await (const msg of client.messages()) {
-            handleMessage(ctx, msg);
-          }
-        } catch (err) {
-          const detail = err instanceof Error ? err.message : String(err);
-          console.error(`[toq] SSE connection lost: ${detail}`);
-          await new Promise((r) => setTimeout(r, 5000));
-        }
-      }
-    },
-  });
-}
-
 export function handleMessage(ctx: any, msg: any): void {
   const body = msg.body as Record<string, unknown> | undefined;
 
@@ -101,3 +76,38 @@ export function dispatch(ctx: any, from: string, text: string, threadId?: string
     metadata: { toqThreadId: threadId },
   });
 }
+
+const plugin = {
+  id: "toq-channel",
+  name: "toq protocol",
+  description: "Secure agent-to-agent communication via toq protocol",
+  configSchema: { safeParse: (v: any) => ({ success: true, data: v }) },
+  register(api: any) {
+    api.registerChannel?.({ plugin: toqChannel });
+
+    api.registerService?.({
+      id: "toq-listener",
+      start: async (ctx: any) => {
+        const apiUrl =
+          ctx.config?.channels?.toq?.apiUrl ?? DEFAULT_API_URL;
+        const client = connect(apiUrl);
+
+        while (true) {
+          try {
+            for await (const msg of client.messages()) {
+              handleMessage(ctx, msg);
+            }
+          } catch (err) {
+            const detail = err instanceof Error ? err.message : String(err);
+            console.error(`[toq] SSE connection lost: ${detail}`);
+            await new Promise((r) => setTimeout(r, 5000));
+          }
+        }
+      },
+    });
+
+    api.logger?.info("toq channel plugin registered");
+  },
+};
+
+export default plugin;
