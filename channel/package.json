@@ -1,5 +1,5 @@
 {
-  "name": "toq-openclaw-channel",
+  "name": "toq-channel",
   "version": "0.1.0",
   "description": "OpenClaw channel plugin for toq protocol",
   "type": "module",
