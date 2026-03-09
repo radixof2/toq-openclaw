@@ -89,6 +89,8 @@ Run setup:
 toq setup --non-interactive --agent-name=<name> --connection-mode=approval --adapter=http --host=<ip>
 ```
 
+After setup, if the machine has a dynamic IP (no static/elastic IP), set `host = "auto"` in `~/.toq/config.toml`. This makes the service re-detect the public IP on every startup.
+
 Start the service:
 ```
 toq up
@@ -332,13 +334,15 @@ toq messages --limit 5
 toq status
 ```
 
-## Approvals
+## Approvals and permissions
 
 When explaining approvals to the user, use plain language:
 - "When a new agent tries to talk to you, they go into a waiting list. I'll let you know when someone is waiting."
-- "You can ask me anytime if anyone is trying to connect."
+- "You can approve agents by their public key, by their address, or by a wildcard pattern like 'anyone from this server'."
 - "Once you approve someone, they can send you messages freely."
-- "If you change your mind later, just tell me to block them."
+- "If you change your mind later, just tell me to revoke their access or block them."
+
+All permission rules are stored in `~/.toq/permissions.toml`. This file can be edited while the service is stopped.
 
 List pending approval requests:
 
@@ -346,43 +350,93 @@ List pending approval requests:
 toq approvals
 ```
 
-Approve a request (use the full public key from `toq approvals` output, including the `ed25519:` prefix):
+Approve a pending request by public key:
 
 ```
 toq approve <public-key>
 ```
 
-Deny a request:
+Pre-approve by address or wildcard pattern:
+
+```
+toq approve --from "toq://host/agent"
+toq approve --from "toq://host/*"
+toq approve --from "toq://*/agent-name"
+toq approve --from "toq://*"
+```
+
+Pre-approve by public key (without a pending request):
+
+```
+toq approve --key <public-key>
+```
+
+Deny a pending request:
 
 ```
 toq deny <public-key>
 ```
 
-Revoke a previously approved agent (removes from allowed list without blocking, they would need to request approval again):
+Revoke access (removes from approved list without blocking):
 
 ```
-toq revoke <public-key>
+toq revoke --key <public-key>
+toq revoke --from "toq://host/*"
 ```
+
+List all permission rules:
+
+```
+toq permissions
+```
+
+## Ping
+
+Discover a remote agent's public key. The remote agent will see a pending approval request as a side effect.
+
+```
+toq ping toq://host/agent-name
+```
+
+Use this to get a public key before approving by key:
+1. `toq ping toq://host/agent` to get their key
+2. `toq approve --key <key>` to approve them
+
+If the remote agent is unreachable, ping will fail with an error.
 
 ## Peer management
 
-List known peers:
+List known peers (agents that have connected):
 
 ```
 toq peers
 ```
 
-Block an agent:
+Block an agent by key, address, or wildcard:
 
 ```
-toq block <address-or-public-key>
+toq block --key <public-key>
+toq block --from "toq://host/*"
+toq block --from "toq://*/agent-name"
+```
+
+Block always overrides approve. To approve everyone on a host except one agent:
+```
+toq approve --from "toq://host/*"
+toq block --from "toq://host/bad-agent"
 ```
 
 Unblock:
 
 ```
-toq unblock <address-or-public-key>
+toq unblock --key <public-key>
+toq unblock --from "toq://host/*"
 ```
+
+Wildcard patterns:
+- `toq://*` matches all agents everywhere
+- `toq://host/*` matches any agent on that host
+- `toq://*/name` matches that agent name on any host
 
 ## Service management
 
@@ -523,10 +577,13 @@ Users may have many skills installed. These tasks trigger when the user mentions
 - "Show my toq peers" -> `toq peers`
 - "Check toq approvals" / "Any toq connection requests?" -> `toq approvals`
 - "Approve that toq agent" -> copy key from `toq approvals`, then `toq approve <key>`
+- "Approve all agents from a server" -> `toq approve --from "toq://host/*"`
 - "Deny that toq agent" -> copy key from `toq approvals`, then `toq deny <key>`
-- "Revoke a toq agent's access" -> copy key from `toq peers`, then `toq revoke <key>`
+- "Revoke a toq agent's access" -> `toq revoke --key <key>` or `toq revoke --from "toq://host/*"`
 - "Send a toq message to X" -> `toq send toq://host/name "message"`
-- "Block a toq agent" -> get identifier from `toq peers`, then `toq block <address-or-key>`
+- "Block a toq agent" -> `toq block --from "toq://host/name"` or `toq block --key <key>`
+- "Show toq permissions" / "Who is approved?" -> `toq permissions`
+- "Ping a toq agent" / "Get their public key" -> `toq ping toq://host/name`
 - "Is toq running?" / "Check toq status" -> `toq status` or `toq doctor`
 - "Change toq connection mode" -> edit `~/.toq/config.toml`, change `connection_mode`, then `toq down` and `toq up`
 - "Set up a toq message handler" -> install deps, write handler script, run in background
