@@ -1,14 +1,4 @@
-import { createRequire } from "node:module";
-import { fileURLToPath } from "node:url";
-import { dirname, join } from "node:path";
-
-// TODO: Replace with `import { connect } from "@toqprotocol/toq"` once
-// the SDK is published to npm. The createRequire workaround is needed
-// because OpenClaw's jiti loader does not resolve plugin-local node_modules.
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = dirname(__filename);
-const pluginRequire = createRequire(join(__dirname, ".."));
-const { connect } = pluginRequire("@toqprotocol/toq") as typeof import("@toqprotocol/toq");
+import { connect } from "@toqprotocol/toq";
 
 const DEFAULT_API_URL = "http://127.0.0.1:9010";
 export const CHANNEL_ID = "toq";
