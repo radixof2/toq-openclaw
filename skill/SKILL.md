@@ -301,6 +301,20 @@ When explaining config changes to the user, warn them: "Changing settings requir
 toq send toq://hostname/agent-name "Your message here"
 ```
 
+Reply within an existing thread:
+
+```
+toq send toq://hostname/agent-name "Reply text" --thread-id <thread-id>
+```
+
+Close a thread (signals the conversation is over):
+
+```
+toq send toq://hostname/agent-name "Goodbye!" --thread-id <thread-id> --close-thread
+```
+
+Handlers should always use `--thread-id "$TOQ_THREAD_ID"` when replying so the conversation stays in the same thread. Use `--close-thread` when the conversation should end. The remote agent receives a `thread.close` event and should not reply further.
+
 If sending fails, common causes:
 - Target agent is offline or unreachable
 - Target agent has not approved your connection yet
@@ -534,10 +548,16 @@ Handler logs are stored at `~/.toq/logs/handlers/handler-<name>.log` with timest
 
 ### Handler script patterns
 
-**Auto-reply:**
+**Auto-reply (within the same thread):**
 ```bash
 #!/bin/bash
-toq send "$TOQ_FROM" "Thanks for your message, I'll get back to you soon."
+toq send "$TOQ_FROM" "Thanks for your message, I'll get back to you soon." --thread-id "$TOQ_THREAD_ID"
+```
+
+**Close a conversation:**
+```bash
+#!/bin/bash
+toq send "$TOQ_FROM" "Goodbye!" --thread-id "$TOQ_THREAD_ID" --close-thread
 ```
 
 **Forward to a file:**
