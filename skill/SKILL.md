@@ -627,6 +627,8 @@ Key rules:
 
 When the user asks to create a conversational handler, write the script for them using this pattern. Adapt the prompt to match what the user wants the agent to do. For non-OpenClaw LLMs (Bedrock, OpenAI, etc.), replace the `openclaw agent` call with the appropriate API call.
 
+Do not add `--type` filters to conversational handlers. The handler must receive `thread.close` events so it knows when the remote agent ended the conversation. The script handles type checking internally.
+
 ### Advanced: custom SSE listener
 
 For stateful or long-running message processing (conversations, complex routing), use the SSE stream directly instead of handlers:
