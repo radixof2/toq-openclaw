@@ -1,6 +1,6 @@
 ---
 name: toq
-description: Send and receive secure messages to other AI agents using the toq protocol. Manage peers, block/unblock agents, and configure connection security.
+description: Send and receive secure messages to other AI agents using the toq protocol. Manage peers, block/unblock agents, register message handlers, and configure connection security.
 license: Apache-2.0
 allowed-tools: Bash(toq:*)
 metadata: {"openclaw":{"requires":{"os":["darwin","linux"]}}}
@@ -460,55 +460,122 @@ Export and import require a TTY for passphrase prompts. Tell the user to run the
 
 ## Message handlers
 
-The user can define how incoming messages should be processed by creating a handler script.
+Handlers are scripts that the toq daemon runs automatically when messages arrive. The daemon manages the lifecycle: spawning, filtering, logging, and stopping.
 
-Before creating a handler, install dependencies:
+### Registering a handler
 
-Before installing handler dependencies, tell the user what will be installed and how the handler works: "To set up this handler, I'll install `jq` (a tool for reading message data) and use `curl` (for connecting to the message stream). The handler itself will be a small script that runs in the background, watching for incoming messages and taking action based on your rules."
+When the user wants to process incoming messages automatically, write the handler script for them and register it with toq. If the user prefers to write the script themselves, guide them on the format and environment variables instead.
+
+First, create the handlers directory if it doesn't exist:
 
 ```
-which jq > /dev/null 2>&1 || sudo apt-get install -y jq
-which curl > /dev/null 2>&1 || sudo apt-get install -y curl
+mkdir -p ~/.toq/handlers
 ```
 
-Always check for and install missing dependencies before writing the handler script.
-
-To create a handler, write a script at `~/.toq/handler.sh` that:
-1. Uses `curl -s -N http://127.0.0.1:9010/v1/messages` to listen for incoming messages via SSE
-2. Parses each `data:` line as JSON using `jq`
-3. Checks the `from`, `type`, and `body.text` fields
-4. Takes the action the user described
-
-Example: "When I get a message from alice about invoices, save it to ~/invoices.log"
+Write the handler script based on what the user described. Handlers receive the full message as JSON on stdin, and environment variables for convenience: `TOQ_FROM`, `TOQ_TEXT`, `TOQ_THREAD_ID`, `TOQ_TYPE`, `TOQ_ID`.
 
 ```bash
+cat > ~/.toq/handlers/log-alice.sh << 'EOF'
 #!/bin/bash
+echo "[$(date)] From: $TOQ_FROM - $TOQ_TEXT" >> ~/alice-messages.log
+EOF
+chmod +x ~/.toq/handlers/log-alice.sh
+```
+
+Then register it:
+
+```
+toq handler add alice-logger --command "bash ~/.toq/handlers/log-alice.sh" --from "toq://*/alice"
+```
+
+The `--from` filter means only messages from agents named "alice" trigger this handler. Without a filter, the handler runs for every message.
+
+### Filter options
+
+Filters control which messages trigger a handler. Same filter type uses OR logic, different types use AND.
+
+```
+# Only messages from a specific host
+toq handler add host-logger --command "bash log.sh" --from "toq://1.2.3.4/*"
+
+# Messages from multiple hosts (OR)
+toq handler add multi --command "bash log.sh" --from "toq://abc.com/*" --from "toq://def.com/*"
+
+# Only message.send type (not thread.close)
+toq handler add msgs-only --command "bash log.sh" --type message.send
+
+# Combined: from a host AND of a specific type (AND)
+toq handler add strict --command "bash log.sh" --from "toq://host/*" --type message.send
+```
+
+### Managing handlers
+
+```
+# List all handlers with status
+toq handler list
+
+# Disable without removing
+toq handler disable alice-logger
+
+# Re-enable
+toq handler enable alice-logger
+
+# Remove entirely
+toq handler remove alice-logger
+
+# Stop all running processes for a handler
+toq handler stop alice-logger
+
+# View handler logs
+toq handler logs alice-logger
+```
+
+Handler logs are stored at `~/.toq/logs/handlers/handler-<name>.log` with timestamps and process IDs.
+
+### Handler script patterns
+
+**Auto-reply:**
+```bash
+#!/bin/bash
+toq send "$TOQ_FROM" "Thanks for your message, I'll get back to you soon."
+```
+
+**Forward to a file:**
+```bash
+#!/bin/bash
+echo "[$(date)] $TOQ_FROM: $TOQ_TEXT" >> ~/toq-inbox.log
+```
+
+**Parse JSON from stdin for full message data:**
+```bash
+#!/bin/bash
+MSG=$(cat)
+FROM=$(echo "$MSG" | jq -r '.from')
+TEXT=$(echo "$MSG" | jq -r '.body.text // empty')
+# Process as needed
+```
+
+For JSON parsing, ensure jq is installed:
+```
+which jq > /dev/null 2>&1 || sudo apt-get install -y jq
+```
+
+### Advanced: custom SSE listener
+
+For stateful or long-running message processing (conversations, complex routing), use the SSE stream directly instead of handlers:
+
+```bash
 curl -s -N http://127.0.0.1:9010/v1/messages | while read -r line; do
   if [[ "$line" == data:* ]]; then
     json="${line#data: }"
     from=$(echo "$json" | jq -r '.from // empty')
     text=$(echo "$json" | jq -r '.body.text // empty')
-    type=$(echo "$json" | jq -r '.type // empty')
-    if [[ "$type" == "message.send" ]] && [[ "$from" == *"alice"* ]] && echo "$text" | grep -qi "invoice"; then
-      echo "[$(date)] From: $from - $text" >> ~/invoices.log
-    fi
+    # Process message
   fi
 done
 ```
 
-Run handlers in the background:
-
-```bash
-nohup bash ~/.toq/handler.sh > /tmp/toq-handler.log 2>&1 &
-```
-
-The SSE stream provides all incoming messages as JSON with fields: `id`, `from`, `type`, `body`, `thread_id`, `timestamp`.
-
-For handlers that need to reply:
-
-```bash
-toq send "$from" "Got your invoice, processing now."
-```
+The SSE stream supports server-side filtering: `http://127.0.0.1:9010/v1/messages?from=toq://host/*&type=message.send`
 
 When creating handlers, confirm with the user:
 - What messages to match (sender, keywords, all messages)
@@ -525,8 +592,6 @@ To protect against this:
 2. **OpenClaw's exec approval mode** adds a second layer: every command I run requires your explicit OK before it executes. If this is not already enabled, I strongly recommend turning it on before we set up message forwarding.
 
 With both protections active, a malicious agent would need to get past your approval AND trick you into confirming a harmful command. That is two locks instead of one."
-
-Always run handlers in the background. If the user wants the handler to survive reboots, add it to the systemd service or a cron @reboot entry.
 
 ## Security
 
@@ -586,7 +651,12 @@ Users may have many skills installed. These tasks trigger when the user mentions
 - "Ping a toq agent" / "Get their public key" -> `toq ping toq://host/name`
 - "Is toq running?" / "Check toq status" -> `toq status` or `toq doctor`
 - "Change toq connection mode" -> edit `~/.toq/config.toml`, change `connection_mode`, then `toq down` and `toq up`
-- "Set up a toq message handler" -> install deps, write handler script, run in background
+- "Set up a toq message handler" -> write handler script, register with `toq handler add`
+- "Show my toq handlers" / "List handlers" -> `toq handler list`
+- "Disable a handler" -> `toq handler disable <name>`
+- "Remove a handler" -> `toq handler remove <name>`
+- "Show handler logs" -> `toq handler logs <name>`
+- "Stop a handler" -> `toq handler stop <name>`
 - "Run toq diagnostics" -> `toq doctor`
 - "Show toq logs" -> `toq logs`
 - "Shut down toq" / "Kill toq" / "Emergency stop" -> `toq down`
