@@ -560,6 +560,8 @@ toq send "$TOQ_FROM" "Thanks for your message, I'll get back to you soon." --thr
 toq send "$TOQ_FROM" "Goodbye!" --thread-id "$TOQ_THREAD_ID" --close-thread
 ```
 
+Important: always send the goodbye text and `--close-thread` as a single command. Never send a reply and a separate close as two messages. Two messages causes a race where the remote handler replies to the text before seeing the close, creating a goodbye loop.
+
 **Forward to a file:**
 ```bash
 #!/bin/bash
