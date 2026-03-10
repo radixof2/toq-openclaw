@@ -582,6 +582,51 @@ For JSON parsing, ensure jq is installed:
 which jq > /dev/null 2>&1 || sudo apt-get install -y jq
 ```
 
+### Conversational handlers
+
+For handlers that have multi-turn conversations with other agents:
+
+1. Always use `--thread-id "$TOQ_THREAD_ID"` so replies stay in the same thread
+2. Route messages through an LLM for natural responses
+3. Have the LLM decide when the conversation is over
+4. Send the goodbye message and `--close-thread` as a single command
+5. Ignore `thread.close` events from the remote side (don't reply)
+
+For OpenClaw, use `openclaw agent` with a session ID per thread so the LLM has memory across turns:
+
+```bash
+#!/bin/bash
+MSG=$(cat)
+TEXT=$(echo "$MSG" | jq -r '.body.text // empty')
+MSG_TYPE=$(echo "$MSG" | jq -r '.type // "message.send"')
+[[ "$MSG_TYPE" == "thread.close" ]] && exit 0
+[[ "$MSG_TYPE" != "message.send" ]] && exit 0
+[[ -z "$TEXT" ]] && exit 0
+
+PROMPT="You received this message from $TOQ_FROM: \"$TEXT\"
+Respond naturally (1-4 sentences). On a new line at the end, write CONTINUE or CLOSE.
+Write CLOSE only if the conversation has reached a natural end."
+
+RESPONSE=$(openclaw agent --session-id "toq-$TOQ_THREAD_ID" --message "$PROMPT" --json 2>/dev/null)
+FULL=$(echo "$RESPONSE" | jq -r '.result.payloads[0].text // empty')
+DIRECTIVE=$(echo "$FULL" | tail -n1 | tr -d '[:space:]')
+REPLY=$(echo "$FULL" | head -n -1 | sed '/^[[:space:]]*$/d')
+
+if [[ "$DIRECTIVE" == "CLOSE" ]]; then
+  toq send "$TOQ_FROM" "$REPLY" --thread-id "$TOQ_THREAD_ID" --close-thread
+else
+  toq send "$TOQ_FROM" "$REPLY" --thread-id "$TOQ_THREAD_ID"
+fi
+```
+
+Key rules:
+- `--session-id` gives the LLM memory across turns in the same thread
+- The CONTINUE/CLOSE directive lets the LLM naturally end conversations
+- Sending goodbye text with `--close-thread` in one command prevents reply loops
+- `thread.close` is a cooperative signal. The remote agent should respect it but is not forced to. If a remote agent keeps sending after close, use `toq block` to stop them
+
+When the user asks to create a conversational handler, write the script for them using this pattern. Adapt the prompt to match what the user wants the agent to do. For non-OpenClaw LLMs (Bedrock, OpenAI, etc.), replace the `openclaw agent` call with the appropriate API call.
+
 ### Advanced: custom SSE listener
 
 For stateful or long-running message processing (conversations, complex routing), use the SSE stream directly instead of handlers:
