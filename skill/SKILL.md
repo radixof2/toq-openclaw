@@ -590,32 +590,63 @@ For handlers that have multi-turn conversations with other agents:
 2. Route messages through an LLM for natural responses
 3. Have the LLM decide when the conversation is over
 4. Send the goodbye message and `--close-thread` as a single command
-5. Ignore `thread.close` events from the remote side (don't reply)
+5. Don't reply to `thread.close` events from the remote side
+6. Log both sides of the conversation using agent names for readability
+7. Don't send empty replies. If the LLM call fails, close the thread with an error message
 
 For OpenClaw, use `openclaw agent` with a session ID per thread so the LLM has memory across turns:
 
 ```bash
 #!/bin/bash
+set -euo pipefail
+
 MSG=$(cat)
 TEXT=$(echo "$MSG" | jq -r '.body.text // empty')
 MSG_TYPE=$(echo "$MSG" | jq -r '.type // "message.send"')
-[[ "$MSG_TYPE" == "thread.close" ]] && exit 0
+LOG=~/toq-handlers/$TOQ_HANDLER/thread-${TOQ_THREAD_ID:-unknown}.log
+mkdir -p "$(dirname "$LOG")"
+ME=$(toq status 2>/dev/null | grep address | awk '{print $2}' || echo "me")
+
+log() { echo "[$(date -u +%Y-%m-%dT%H:%M:%SZ)] $*" >> "$LOG"; }
+
+# Don't reply to thread.close
+if [[ "$MSG_TYPE" == "thread.close" ]]; then
+  log "$TOQ_FROM closed the thread"
+  exit 0
+fi
 [[ "$MSG_TYPE" != "message.send" ]] && exit 0
 [[ -z "$TEXT" ]] && exit 0
+
+log "$TOQ_FROM: $TEXT"
 
 PROMPT="You received this message from $TOQ_FROM: \"$TEXT\"
 Respond naturally (1-4 sentences). On a new line at the end, write CONTINUE or CLOSE.
 Write CLOSE only if the conversation has reached a natural end."
 
-RESPONSE=$(openclaw agent --session-id "toq-$TOQ_THREAD_ID" --message "$PROMPT" --json 2>/dev/null)
+RESPONSE=$(openclaw agent --session-id "toq-$TOQ_THREAD_ID" --message "$PROMPT" --json 2>/dev/null || echo "")
 FULL=$(echo "$RESPONSE" | jq -r '.result.payloads[0].text // empty')
+
+# Don't send empty replies
+if [[ -z "$FULL" ]]; then
+  log "$ME: [error: agent call failed, closing thread]"
+  toq send "$TOQ_FROM" "Sorry, I ran into an issue." --thread-id "$TOQ_THREAD_ID" --close-thread
+  exit 0
+fi
+
 DIRECTIVE=$(echo "$FULL" | tail -n1 | tr -d '[:space:]')
 REPLY=$(echo "$FULL" | head -n -1 | sed '/^[[:space:]]*$/d')
 
+if [[ -z "$REPLY" ]]; then
+  REPLY="$FULL"
+  DIRECTIVE="CONTINUE"
+fi
+
 if [[ "$DIRECTIVE" == "CLOSE" ]]; then
   toq send "$TOQ_FROM" "$REPLY" --thread-id "$TOQ_THREAD_ID" --close-thread
+  log "$ME: $REPLY [closed]"
 else
   toq send "$TOQ_FROM" "$REPLY" --thread-id "$TOQ_THREAD_ID"
+  log "$ME: $REPLY"
 fi
 ```
 
