@@ -264,6 +264,16 @@ If the user says "shut down toq", "kill toq", "stop toq", or "emergency stop":
 toq down
 ```
 
+To stop a specific named agent from anywhere:
+```
+toq down --name <agent-name>
+```
+
+To list all running agents:
+```
+toq agents
+```
+
 Confirm the service is stopped. If `toq down` fails:
 ```
 pkill -f "toq.*daemon"
@@ -271,6 +281,19 @@ rm -f ~/.toq/toq.pid
 ```
 
 Tell the user the service is stopped and port 9009 is no longer listening.
+
+## Workspaces
+
+To run multiple agents on one machine, use workspaces. Each agent gets its own directory:
+
+```
+toq init --name my-agent --port auto
+toq up
+```
+
+This creates a `.toq/` directory in the current folder with its own config, keys, and handlers. The agent gets an auto-assigned port so it won't conflict with other agents.
+
+All toq commands automatically detect the workspace when run from the agent's directory. Use `--config-dir` to target a specific workspace from elsewhere.
 
 ## Connection modes
 
