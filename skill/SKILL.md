@@ -485,7 +485,7 @@ View recent logs: `toq logs`
 
 ## Listening for messages
 
-WARNING: `toq listen` and `toq logs --follow` block indefinitely and cannot be interrupted by the agent. Never run these commands. Use `toq messages` to read received messages instead.
+WARNING: `toq logs --follow` blocks indefinitely and cannot be interrupted by the agent. Never run this command. Use `toq messages` to read received messages instead.
 
 ## Key management
 
