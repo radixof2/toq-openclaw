@@ -23,10 +23,8 @@ import {
 const TOQ_BIN =
   process.env.TOQ_BIN ||
   join(__dirname, "../../../../toq/target/release/toq");
-const ALICE_API = 29750;
-const ALICE_PROTO = 29749;
-const BOB_API = 29752;
-const BOB_PROTO = 29751;
+const ALICE_PORT = 29749;
+const BOB_PORT = 29751;
 
 let aliceDir: string;
 let bobDir: string;
@@ -35,7 +33,7 @@ function sleep(ms: number): Promise<void> {
   return new Promise((r) => setTimeout(r, ms));
 }
 
-function setupDaemon(name: string, apiPort: number, protoPort: number): string {
+function setupDaemon(name: string, port: number): string {
   const dir = mkdtempSync(join(tmpdir(), `toq-oc-it-${name}-`));
   execFileSync(TOQ_BIN, [
     "setup", "--non-interactive", "--agent-name", name,
@@ -44,8 +42,7 @@ function setupDaemon(name: string, apiPort: number, protoPort: number): string {
 
   const configPath = join(dir, ".toq/config.toml");
   let config = readFileSync(configPath, "utf-8");
-  config = config.replace("port = 9009", `port = ${protoPort}`);
-  config = config.replace("api_port = 9010", `api_port = ${apiPort}`);
+  config = config.replace("port = 9009", `port = ${port}`);
   writeFileSync(configPath, config);
 
   execFileSync(TOQ_BIN, ["up"], { env: { ...process.env, HOME: dir } });
@@ -60,8 +57,8 @@ beforeAll(async () => {
   if (!existsSync(TOQ_BIN)) {
     throw new Error(`toq binary not found at ${TOQ_BIN}`);
   }
-  aliceDir = setupDaemon("alice", ALICE_API, ALICE_PROTO);
-  bobDir = setupDaemon("bob", BOB_API, BOB_PROTO);
+  aliceDir = setupDaemon("alice", ALICE_PORT);
+  bobDir = setupDaemon("bob", BOB_PORT);
   await sleep(2000);
 }, 20000);
 
@@ -72,7 +69,7 @@ afterAll(() => {
 
 describe("toqChannel.outbound.sendText", () => {
   it("sends through the plugin function and bob receives it", async () => {
-    const bobClient = connect(`http://127.0.0.1:${BOB_API}`);
+    const bobClient = connect(`http://127.0.0.1:${BOB_PORT}`);
     const received: any[] = [];
 
     const listener = (async () => {
@@ -85,11 +82,10 @@ describe("toqChannel.outbound.sendText", () => {
     await sleep(500);
 
     // Call the actual plugin sendText function
-    // It calls connect() which defaults to localhost:9010, so we need
-    // alice's daemon on that port. Instead, test the send path directly.
-    const aliceClient = connect(`http://127.0.0.1:${ALICE_API}`);
+    // Test the send path directly via the SDK.
+    const aliceClient = connect(`http://127.0.0.1:${ALICE_PORT}`);
     await aliceClient.send(
-      `toq://127.0.0.1:${BOB_PROTO}/bob`,
+      `toq://127.0.0.1:${BOB_PORT}/bob`,
       "from channel plugin",
       { wait: true },
     );
@@ -109,7 +105,7 @@ describe("handleMessage dispatches to OpenClaw context", () => {
     };
 
     // Get a real message from the daemon
-    const bobClient = connect(`http://127.0.0.1:${BOB_API}`);
+    const bobClient = connect(`http://127.0.0.1:${BOB_PORT}`);
     let realMsg: any = null;
 
     const listener = (async () => {
@@ -121,9 +117,9 @@ describe("handleMessage dispatches to OpenClaw context", () => {
 
     await sleep(500);
 
-    const aliceClient = connect(`http://127.0.0.1:${ALICE_API}`);
+    const aliceClient = connect(`http://127.0.0.1:${ALICE_PORT}`);
     await aliceClient.send(
-      `toq://127.0.0.1:${BOB_PROTO}/bob`,
+      `toq://127.0.0.1:${BOB_PORT}/bob`,
       "dispatch test",
       { wait: true },
     );

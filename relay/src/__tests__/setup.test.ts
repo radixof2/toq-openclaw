@@ -52,9 +52,9 @@ describe("ensureReady", () => {
     exec.mockImplementation(() => Buffer.from(""));
     fs.mockReturnValue(true); // config exists AND state exists
 
-    const result = await ensureReady("test-agent", 9010);
+    const result = await ensureReady("test-agent", 9009);
     expect(result.bin).toBe("toq");
-    expect(result.apiPort).toBe(9010);
+    expect(result.apiPort).toBe(9009);
   });
 
   it("runs setup when not configured", async () => {
@@ -70,7 +70,7 @@ describe("ensureReady", () => {
       return false;
     });
 
-    const result = await ensureReady("my-bot", 9010);
+    const result = await ensureReady("my-bot", 9009);
     expect(result.bin).toBe("toq");
     // Verify setup was called (execFileSync called with "setup" arg)
     const setupCalls = exec.mock.calls.filter(

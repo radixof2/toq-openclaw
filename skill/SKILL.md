@@ -688,7 +688,7 @@ Do not add `--type` filters to conversational handlers. The handler must receive
 For stateful or long-running message processing (conversations, complex routing), use the SSE stream directly instead of handlers:
 
 ```bash
-curl -s -N http://127.0.0.1:9010/v1/messages | while read -r line; do
+curl -s -N http://127.0.0.1:9009/v1/messages | while read -r line; do
   if [[ "$line" == data:* ]]; then
     json="${line#data: }"
     from=$(echo "$json" | jq -r '.from // empty')
@@ -698,7 +698,7 @@ curl -s -N http://127.0.0.1:9010/v1/messages | while read -r line; do
 done
 ```
 
-The SSE stream supports server-side filtering: `http://127.0.0.1:9010/v1/messages?from=toq://host/*&type=message.send`
+The SSE stream supports server-side filtering: `http://127.0.0.1:9009/v1/messages?from=toq://host/*&type=message.send`
 
 When creating handlers, confirm with the user:
 - What messages to match (sender, keywords, all messages)
@@ -752,7 +752,7 @@ Before setting up DNS, make sure connection mode is `approval` or stricter.
 
 ### Local API port
 
-Port 9010 is for localhost management only. NEVER expose it to the network.
+The HTTP API on port 9009 is for localhost management only. The same port also serves the toq protocol for remote agents.
 
 ## Common tasks
 

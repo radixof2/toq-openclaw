@@ -39,7 +39,7 @@ export interface SetupResult {
 
 export async function ensureReady(
   agentName?: string,
-  apiPort = 9010,
+  apiPort = 9009,
 ): Promise<SetupResult> {
   const bin = findBinary();
   if (!bin) {

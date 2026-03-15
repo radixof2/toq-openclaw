@@ -8,7 +8,7 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { homedir } from "node:os";
 
-const DEFAULT_API_PORT = 9010;
+const DEFAULT_PORT = 9009;
 const RELAY_CONFIG_PATH = join(homedir(), ".toq", "relay.json");
 
 interface RelayConfig {
@@ -30,7 +30,7 @@ function loadConfig(): RelayConfig {
 
 async function main(): Promise<void> {
   const config = loadConfig();
-  const apiPort = config.apiPort ?? DEFAULT_API_PORT;
+  const apiPort = config.apiPort ?? DEFAULT_PORT;
 
   const { bin } = await ensureReady(config.agentName, apiPort);
   console.log(`toq binary: ${bin}`);

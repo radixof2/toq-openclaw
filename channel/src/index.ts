@@ -1,6 +1,6 @@
 import { connect } from "@toqprotocol/toq";
 
-const DEFAULT_API_URL = "http://127.0.0.1:9010";
+const DEFAULT_API_URL = "http://127.0.0.1:9009";
 export const CHANNEL_ID = "toq";
 export const STREAM_CHUNK_TYPE = "message.stream.chunk";
 export const STREAM_END_TYPE = "message.stream.end";
