@@ -1,4 +1,5 @@
 import { connect } from "@toqprotocol/toq";
+import EventSource from "eventsource";
 
 const DEFAULT_API_URL = "http://127.0.0.1:9009";
 export const CHANNEL_ID = "toq";
@@ -121,35 +122,37 @@ export const toqChannel = {
   gateway: {
     startAccount: async (ctx: any) => {
       const apiUrl = ctx.cfg?.channels?.toq?.apiUrl ?? DEFAULT_API_URL;
-      const client = connect(apiUrl);
       const log = ctx.log ?? console;
-      log.info?.(`[toq] connecting to SSE at ${apiUrl}`);
 
       try {
+        const client = connect(apiUrl);
         const status = await client.status() as any;
         localAddress = status?.address ?? "";
         log.info?.(`[toq] local address: ${localAddress}`);
       } catch {}
 
-      while (!ctx.abortSignal?.aborted) {
+      const es = new EventSource(`${apiUrl}/v1/messages`);
+      log.info?.(`[toq] SSE connected to ${apiUrl}`);
+
+      es.onmessage = (event: any) => {
         try {
-          for await (const msg of client.messages()) {
-            if (ctx.abortSignal?.aborted) break;
-            try {
-              handleMessage(msg);
-            } catch (err) {
-              const detail = err instanceof Error ? err.message : String(err);
-              log.error?.(`[toq] message handling error: ${detail}`);
-            }
-          }
+          const msg = JSON.parse(event.data);
+          handleMessage(msg);
         } catch (err) {
           const detail = err instanceof Error ? err.message : String(err);
-          log.error?.(`[toq] SSE connection lost: ${detail}`);
-          if (!ctx.abortSignal?.aborted) {
-            await new Promise((r) => setTimeout(r, 5000));
-          }
+          log.error?.(`[toq] message error: ${detail}`);
         }
-      }
+      };
+
+      es.onerror = () => {
+        log.warn?.(`[toq] SSE reconnecting...`);
+      };
+
+      // Block until abort
+      await new Promise<void>((resolve) => {
+        if (ctx.abortSignal?.aborted) { es.close(); return resolve(); }
+        ctx.abortSignal?.addEventListener("abort", () => { es.close(); resolve(); }, { once: true });
+      });
     },
     stopAccount: async () => {},
   },
