@@ -44,14 +44,14 @@ async function dispatchToAgent(from: string, text: string, threadId?: string): P
     });
 
     const toqClient = connect();
-    const { dispatcher } = rt.channel.reply.createReplyDispatcherWithTyping({
+    const dispatcher = rt.channel.reply.createReplyDispatcherWithTyping({
       deliver: async (payload: any) => {
         const replyText = payload?.text ?? payload?.body ?? "";
         if (replyText) {
           await toqClient.send(from, replyText, { thread_id: threadId });
         }
       },
-    });
+    }).dispatcher;
 
     await rt.channel.reply.dispatchReplyFromConfig({ ctx, cfg, dispatcher });
   } catch (err) {
