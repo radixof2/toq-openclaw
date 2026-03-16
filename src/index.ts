@@ -15,33 +15,48 @@ async function dispatchToAgent(from: string, text: string, threadId?: string): P
   const rt = pluginApi.runtime;
   const cfg = pluginApi.config;
 
-  const envelope = rt.channel.reply.formatInboundEnvelope({
-    channel: CHANNEL_ID,
-    from,
-    body: text,
-    chatType: "direct",
-    senderLabel: from,
-  });
+  try {
+    const envelope = rt.channel.reply.formatInboundEnvelope({
+      channel: CHANNEL_ID,
+      from,
+      body: text,
+      chatType: "direct",
+      senderLabel: from,
+    });
 
-  const route = rt.channel.routing.resolveAgentRoute({
-    cfg,
-    channel: CHANNEL_ID,
-    accountId: "default",
-    peer: { kind: "dm", id: from },
-  });
+    const route = rt.channel.routing.resolveAgentRoute({
+      cfg,
+      channel: CHANNEL_ID,
+      accountId: "default",
+      peer: { kind: "dm", id: from },
+    });
 
-  const ctx = rt.channel.reply.finalizeInboundContext({
-    channel: CHANNEL_ID,
-    accountId: "default",
-    senderId: from,
-    chatType: "direct",
-    text: envelope,
-    route,
-    cfg,
-    messageId: threadId ?? `toq-${Date.now()}`,
-  });
+    const ctx = rt.channel.reply.finalizeInboundContext({
+      channel: CHANNEL_ID,
+      accountId: "default",
+      senderId: from,
+      chatType: "direct",
+      text: envelope,
+      route,
+      cfg,
+      messageId: threadId ?? `toq-${Date.now()}`,
+    });
 
-  await rt.channel.reply.dispatchReplyFromConfig({ ctx, cfg });
+    const toqClient = connect();
+    const { dispatcher } = rt.channel.reply.createReplyDispatcherWithTyping({
+      deliver: async (payload: any) => {
+        const replyText = payload?.text ?? payload?.body ?? "";
+        if (replyText) {
+          await toqClient.send(from, replyText, { thread_id: threadId });
+        }
+      },
+    });
+
+    await rt.channel.reply.dispatchReplyFromConfig({ ctx, cfg, dispatcher });
+  } catch (err) {
+    const detail = err instanceof Error ? err.message : String(err);
+    pluginApi.logger?.error?.(`[toq] dispatch error: ${detail}`);
+  }
 }
 
 export function handleMessage(msg: any): void {
@@ -124,7 +139,7 @@ export const toqChannel = {
               handleMessage(msg);
             } catch (err) {
               const detail = err instanceof Error ? err.message : String(err);
-              log.error?.(`[toq] dispatch error: ${detail}`);
+              log.error?.(`[toq] message handling error: ${detail}`);
             }
           }
         } catch (err) {
