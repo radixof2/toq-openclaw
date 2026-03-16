@@ -21,7 +21,12 @@ async function sendToAgent(from: string, text: string, threadId?: string): Promi
   }
 }
 
+let localAddress = "";
+
 export function handleMessage(msg: any): void {
+  // Skip outbound messages (from ourselves)
+  if (localAddress && msg.from?.includes(localAddress)) return;
+
   const body = msg.body as Record<string, unknown> | undefined;
 
   if (msg.type === STREAM_CHUNK_TYPE) {
@@ -90,6 +95,12 @@ export const toqChannel = {
       const client = connect(apiUrl);
       const log = ctx.log ?? console;
       log.info?.(`[toq] connecting to SSE at ${apiUrl}`);
+
+      // Learn our own address to filter outbound messages from SSE
+      try {
+        const status = await client.status() as any;
+        localAddress = status?.address ?? "";
+      } catch {}
 
       while (!ctx.abortSignal?.aborted) {
         try {
