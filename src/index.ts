@@ -91,26 +91,20 @@ export const toqChannel = {
       const log = ctx.log ?? console;
       log.info?.(`[toq] connecting to SSE at ${apiUrl}`);
 
-      const controller = { running: true };
-
-      (async () => {
-        while (controller.running) {
-          try {
-            for await (const msg of client.messages()) {
-              if (!controller.running) break;
-              handleMessage(msg);
-            }
-          } catch (err) {
-            const detail = err instanceof Error ? err.message : String(err);
-            log.error?.(`[toq] SSE connection lost: ${detail}`);
-            if (controller.running) {
-              await new Promise((r) => setTimeout(r, 5000));
-            }
+      while (!ctx.abortSignal?.aborted) {
+        try {
+          for await (const msg of client.messages()) {
+            if (ctx.abortSignal?.aborted) break;
+            handleMessage(msg);
+          }
+        } catch (err) {
+          const detail = err instanceof Error ? err.message : String(err);
+          log.error?.(`[toq] SSE connection lost: ${detail}`);
+          if (!ctx.abortSignal?.aborted) {
+            await new Promise((r) => setTimeout(r, 5000));
           }
         }
-      })();
-
-      return controller;
+      }
     },
     stopAccount: async () => {},
   },
