@@ -18,6 +18,10 @@
   "scripts": {
     "test": "vitest run"
   },
+  "files": [
+    "src/index.ts",
+    "openclaw.plugin.json"
+  ],
   "dependencies": {
     "@toqprotocol/toq": ">=0.1.0-dev.1"
   },
