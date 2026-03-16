@@ -13,6 +13,14 @@ export default function register(api: any): void {
   if (api.runtime) {
     const rtKeys = Object.keys(api.runtime).sort();
     api.logger?.info?.(`[toq] api.runtime keys: ${rtKeys.join(", ")}`);
+    if (api.runtime.channel) {
+      const chKeys = Object.keys(api.runtime.channel).sort();
+      api.logger?.info?.(`[toq] api.runtime.channel keys: ${chKeys.join(", ")}`);
+    }
+    if (api.runtime.system) {
+      const sysKeys = Object.keys(api.runtime.system).sort();
+      api.logger?.info?.(`[toq] api.runtime.system keys: ${sysKeys.join(", ")}`);
+    }
   }
   api.registerChannel({ plugin: toqChannel });
 }
