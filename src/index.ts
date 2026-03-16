@@ -1,25 +1,27 @@
 import { connect } from "@toqprotocol/toq";
+import { execFile } from "node:child_process";
+import { promisify } from "node:util";
 
+const execFileAsync = promisify(execFile);
 const DEFAULT_API_URL = "http://127.0.0.1:9009";
 export const CHANNEL_ID = "toq";
 export const STREAM_CHUNK_TYPE = "message.stream.chunk";
 export const STREAM_END_TYPE = "message.stream.end";
 
-/** Buffers stream chunks until StreamEnd arrives. */
 export const streamBuffers = new Map<string, { from: string; text: string; threadId?: string }>();
 
-/** Deliver a message into the OpenClaw conversation. */
-export function dispatch(ctx: any, from: string, text: string, threadId?: string): void {
-  ctx.dispatchInboundMessage({
-    channel: CHANNEL_ID,
-    senderId: from,
-    text,
-    metadata: { toqThreadId: threadId },
-  });
+async function sendToAgent(from: string, text: string, threadId?: string): Promise<void> {
+  const meta = threadId ? ` (thread: ${threadId})` : "";
+  const message = `Incoming toq message from ${from}${meta}: ${text}`;
+  try {
+    await execFileAsync("openclaw", ["agent", "--agent", "main", "--message", message]);
+  } catch (err) {
+    const detail = err instanceof Error ? err.message : String(err);
+    console.error(`[toq] failed to dispatch to agent: ${detail}`);
+  }
 }
 
-/** Process a single SSE message and dispatch to OpenClaw when ready. */
-export function handleMessage(ctx: any, msg: any): void {
+export function handleMessage(msg: any): void {
   const body = msg.body as Record<string, unknown> | undefined;
 
   if (msg.type === STREAM_CHUNK_TYPE) {
@@ -39,15 +41,14 @@ export function handleMessage(ctx: any, msg: any): void {
     const finalChunk = (body?.data as any)?.text ?? "";
     const fullText = (buf?.text ?? "") + finalChunk;
     if (fullText) {
-      dispatch(ctx, buf?.from ?? msg.from, fullText, buf?.threadId);
+      sendToAgent(buf?.from ?? msg.from, fullText, buf?.threadId);
     }
     return;
   }
 
-  // Regular message
   const text = body?.text as string;
   if (text && msg.type === "message.send") {
-    dispatch(ctx, msg.from, text, msg.thread_id);
+    sendToAgent(msg.from, text, msg.thread_id);
   }
 }
 
@@ -61,7 +62,7 @@ export const toqChannel = {
     aliases: ["toq-protocol"],
   },
   capabilities: {
-    chatTypes: ["direct"],
+    chatTypes: ["direct"] as const,
   },
   config: {
     listAccountIds: (cfg: any) =>
@@ -84,10 +85,11 @@ export const toqChannel = {
     },
   },
   gateway: {
-    start: async ({ config, logger }: any, ctx: any) => {
-      const apiUrl = config?.channels?.toq?.apiUrl ?? DEFAULT_API_URL;
+    startAccount: async (ctx: any) => {
+      const apiUrl = ctx.cfg?.channels?.toq?.apiUrl ?? DEFAULT_API_URL;
       const client = connect(apiUrl);
-      logger?.info?.(`[toq] connecting to SSE at ${apiUrl}`);
+      const log = ctx.log ?? console;
+      log.info?.(`[toq] connecting to SSE at ${apiUrl}`);
 
       const controller = { running: true };
 
@@ -96,11 +98,11 @@ export const toqChannel = {
           try {
             for await (const msg of client.messages()) {
               if (!controller.running) break;
-              handleMessage(ctx, msg);
+              handleMessage(msg);
             }
           } catch (err) {
             const detail = err instanceof Error ? err.message : String(err);
-            logger?.error?.(`[toq] SSE connection lost: ${detail}`);
+            log.error?.(`[toq] SSE connection lost: ${detail}`);
             if (controller.running) {
               await new Promise((r) => setTimeout(r, 5000));
             }
@@ -110,12 +112,10 @@ export const toqChannel = {
 
       return controller;
     },
-    stop: async (controller: any) => {
-      controller.running = false;
-    },
+    stopAccount: async () => {},
   },
   outbound: {
-    deliveryMode: "direct",
+    deliveryMode: "direct" as const,
     sendText: async ({ text, target }: { text: string; target: string }) => {
       const client = connect();
       await client.send(target, text);
@@ -126,10 +126,4 @@ export const toqChannel = {
 
 export default function register(api: any): void {
   api.registerChannel({ plugin: toqChannel });
-  api.registerService({
-    id: "toq-listener",
-    label: "toq listener",
-    start: toqChannel.gateway.start,
-    stop: toqChannel.gateway.stop,
-  });
 }
