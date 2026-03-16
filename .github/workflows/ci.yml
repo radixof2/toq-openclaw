@@ -7,11 +7,8 @@ on:
     branches: [main]
 
 jobs:
-  channel:
+  test:
     runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: channel
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4

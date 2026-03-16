@@ -1,6 +1,7 @@
 {
-  "id": "toq-channel",
+  "id": "toq-openclaw",
   "channels": ["toq"],
+  "skills": ["skills/toq-openclaw"],
   "configSchema": {
     "type": "object",
     "additionalProperties": false,
