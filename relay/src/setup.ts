@@ -3,14 +3,21 @@ import { existsSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
 
-const TOQ_DIR = join(homedir(), ".toq");
-const CONFIG_PATH = join(TOQ_DIR, "config.toml");
-const STATE_PATH = join(TOQ_DIR, "state.json");
+const GLOBAL_TOQ_DIR = join(homedir(), ".toq");
 const BIN_PATHS = [
   "toq",
-  join(TOQ_DIR, "bin", "toq"),
+  join(GLOBAL_TOQ_DIR, "bin", "toq"),
   "/usr/local/bin/toq",
 ];
+
+/** Resolve the toq config directory (workspace .toq/ first, then global ~/.toq/). */
+function resolveToqDir(): string {
+  const envDir = process.env.TOQ_CONFIG_DIR;
+  if (envDir) return envDir;
+  const localDir = join(process.cwd(), ".toq");
+  if (existsSync(localDir)) return localDir;
+  return GLOBAL_TOQ_DIR;
+}
 
 function findBinary(): string | null {
   for (const p of BIN_PATHS) {
@@ -25,11 +32,11 @@ function findBinary(): string | null {
 }
 
 function isConfigured(): boolean {
-  return existsSync(CONFIG_PATH);
+  return existsSync(join(resolveToqDir(), "config.toml"));
 }
 
 function isDaemonRunning(): boolean {
-  return existsSync(STATE_PATH);
+  return existsSync(join(resolveToqDir(), "state.json"));
 }
 
 export interface SetupResult {

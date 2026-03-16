@@ -276,7 +276,7 @@ toq agents
 
 Confirm the service is stopped. If `toq down` fails:
 ```
-pkill -f "toq.*daemon"
+pkill -f "toq up"
 rm -f ~/.toq/toq.pid
 ```
 
@@ -304,10 +304,10 @@ All toq commands automatically detect the workspace when run from the agent's di
 
 ## Changing configuration
 
-toq stores its config at `~/.toq/config.toml`. There is no live reload, so to change a setting:
+toq stores its config at `~/.toq/config.toml` (or `.toq/config.toml` in workspace mode). There is no live reload, so to change a setting:
 
 1. Stop the service: `toq down`
-2. Edit the config file. Key fields:
+2. Change the setting with `toq config set <key> <value>`, or edit the config file directly. Key fields:
    - `connection_mode` - "open", "allowlist", "approval", or "dns-verified"
    - `host` - the IP or hostname other agents use to reach this machine
    - `agent_name` - the agent's name in the toq address
@@ -315,6 +315,8 @@ toq stores its config at `~/.toq/config.toml`. There is no live reload, so to ch
    - `message_history_limit` - max messages stored (default 1000)
 3. Start the service: `toq up`
 4. Verify with `toq status`
+
+To view the current config without editing: `toq config show`
 
 When explaining config changes to the user, warn them: "Changing settings requires restarting the toq service. This will drop all current connections. Other agents will need to reconnect the next time they send you a message. Any messages sent to you while the service is down will not be received."
 

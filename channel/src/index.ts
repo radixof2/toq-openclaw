@@ -8,7 +8,50 @@ export const STREAM_END_TYPE = "message.stream.end";
 /** Buffers stream chunks until StreamEnd arrives. */
 export const streamBuffers = new Map<string, { from: string; text: string; threadId?: string }>();
 
-const toqChannel = {
+/** Deliver a message into the OpenClaw conversation. */
+export function dispatch(ctx: any, from: string, text: string, threadId?: string): void {
+  ctx.dispatchInboundMessage({
+    channel: CHANNEL_ID,
+    senderId: from,
+    text,
+    metadata: { toqThreadId: threadId },
+  });
+}
+
+/** Process a single SSE message and dispatch to OpenClaw when ready. */
+export function handleMessage(ctx: any, msg: any): void {
+  const body = msg.body as Record<string, unknown> | undefined;
+
+  if (msg.type === STREAM_CHUNK_TYPE) {
+    const streamId = body?.stream_id as string;
+    if (!streamId) return;
+    const buf = streamBuffers.get(streamId) ?? { from: msg.from, text: "", threadId: msg.thread_id };
+    buf.text += (body?.data as any)?.text ?? "";
+    streamBuffers.set(streamId, buf);
+    return;
+  }
+
+  if (msg.type === STREAM_END_TYPE) {
+    const streamId = body?.stream_id as string;
+    if (!streamId) return;
+    const buf = streamBuffers.get(streamId);
+    streamBuffers.delete(streamId);
+    const finalChunk = (body?.data as any)?.text ?? "";
+    const fullText = (buf?.text ?? "") + finalChunk;
+    if (fullText) {
+      dispatch(ctx, buf?.from ?? msg.from, fullText, buf?.threadId);
+    }
+    return;
+  }
+
+  // Regular message
+  const text = body?.text as string;
+  if (text && msg.type === "message.send") {
+    dispatch(ctx, msg.from, text, msg.thread_id);
+  }
+}
+
+export const toqChannel = {
   id: CHANNEL_ID,
   meta: {
     id: CHANNEL_ID,
@@ -27,7 +70,7 @@ const toqChannel = {
       cfg.channels?.toq?.accounts?.[id ?? "default"] ?? { accountId: id ?? "default" },
   },
   gateway: {
-    start: async ({ account, config, logger }: any) => {
+    start: async ({ config, logger }: any, ctx: any) => {
       const apiUrl = config?.channels?.toq?.apiUrl ?? DEFAULT_API_URL;
       const client = connect(apiUrl);
       logger?.info?.(`[toq] connecting to SSE at ${apiUrl}`);
@@ -39,38 +82,7 @@ const toqChannel = {
           try {
             for await (const msg of client.messages()) {
               if (!controller.running) break;
-              // Skip outbound messages (from ourselves)
-              if (msg.from && msg.from.includes("/")) {
-                const body = msg.body as Record<string, unknown> | undefined;
-
-                if (msg.type === STREAM_CHUNK_TYPE) {
-                  const streamId = body?.stream_id as string;
-                  if (!streamId) continue;
-                  const buf = streamBuffers.get(streamId) ?? { from: msg.from, text: "", threadId: msg.thread_id };
-                  buf.text += (body?.data as any)?.text ?? "";
-                  streamBuffers.set(streamId, buf);
-                  continue;
-                }
-
-                if (msg.type === STREAM_END_TYPE) {
-                  const streamId = body?.stream_id as string;
-                  if (!streamId) continue;
-                  const buf = streamBuffers.get(streamId);
-                  streamBuffers.delete(streamId);
-                  const finalChunk = (body?.data as any)?.text ?? "";
-                  const fullText = (buf?.text ?? "") + finalChunk;
-                  if (fullText) {
-                    logger?.info?.(`[toq] stream from ${buf?.from ?? msg.from}: ${fullText.slice(0, 100)}`);
-                  }
-                  continue;
-                }
-
-                // Regular message
-                const text = body?.text as string;
-                if (text && msg.type === "message.send") {
-                  logger?.info?.(`[toq] message from ${msg.from}: ${text.slice(0, 100)}`);
-                }
-              }
+              handleMessage(ctx, msg);
             }
           } catch (err) {
             const detail = err instanceof Error ? err.message : String(err);
@@ -98,15 +110,12 @@ const toqChannel = {
   },
 };
 
-const plugin = {
-  id: "toq-channel",
-  name: "toq protocol",
-  description: "Secure agent-to-agent communication via toq protocol",
-  configSchema: { safeParse: (v: any) => ({ success: true, data: v }) },
-  register(api: any) {
-    api.registerChannel({ plugin: toqChannel });
-    api.logger?.info("toq channel plugin registered");
-  },
-};
-
-export default plugin;
+export default function register(api: any): void {
+  api.registerChannel({ plugin: toqChannel });
+  api.registerService({
+    id: "toq-listener",
+    label: "toq listener",
+    start: toqChannel.gateway.start,
+    stop: toqChannel.gateway.stop,
+  });
+}
