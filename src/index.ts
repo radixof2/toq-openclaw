@@ -2,46 +2,82 @@ import { connect } from "@toqprotocol/toq";
 
 const DEFAULT_API_URL = "http://127.0.0.1:9009";
 export const CHANNEL_ID = "toq";
+export const STREAM_CHUNK_TYPE = "message.stream.chunk";
+export const STREAM_END_TYPE = "message.stream.end";
+
+export const streamBuffers = new Map<string, { from: string; text: string; threadId?: string }>();
 
 let pluginApi: any = null;
+let localAddress = "";
 
-export default function register(api: any): void {
-  pluginApi = api;
-  // Log all available API methods
-  const keys = Object.keys(api).sort();
-  api.logger?.info?.(`[toq] plugin API keys: ${keys.join(", ")}`);
-  if (api.runtime) {
-    const rtKeys = Object.keys(api.runtime).sort();
-    api.logger?.info?.(`[toq] api.runtime keys: ${rtKeys.join(", ")}`);
-    if (api.runtime.channel) {
-      const chKeys = Object.keys(api.runtime.channel).sort();
-      api.logger?.info?.(`[toq] api.runtime.channel keys: ${chKeys.join(", ")}`);
-      if (api.runtime.channel.reply) {
-        const replyKeys = Object.keys(api.runtime.channel.reply).sort();
-        api.logger?.info?.(`[toq] api.runtime.channel.reply keys: ${replyKeys.join(", ")}`);
-      }
-      if (api.runtime.channel.routing) {
-        const routeKeys = Object.keys(api.runtime.channel.routing).sort();
-        api.logger?.info?.(`[toq] api.runtime.channel.routing keys: ${routeKeys.join(", ")}`);
-      }
-      if (api.runtime.channel.session) {
-        const sessKeys = Object.keys(api.runtime.channel.session).sort();
-        api.logger?.info?.(`[toq] api.runtime.channel.session keys: ${sessKeys.join(", ")}`);
-      }
-      if (api.runtime.channel.activity) {
-        const actKeys = Object.keys(api.runtime.channel.activity).sort();
-        api.logger?.info?.(`[toq] api.runtime.channel.activity keys: ${actKeys.join(", ")}`);
-      }
-    }
-    if (api.runtime.system) {
-      const sysKeys = Object.keys(api.runtime.system).sort();
-      api.logger?.info?.(`[toq] api.runtime.system keys: ${sysKeys.join(", ")}`);
-    }
-  }
-  api.registerChannel({ plugin: toqChannel });
+async function dispatchToAgent(from: string, text: string, threadId?: string): Promise<void> {
+  if (!pluginApi) return;
+  const rt = pluginApi.runtime;
+  const cfg = pluginApi.config;
+
+  const envelope = rt.channel.reply.formatInboundEnvelope({
+    channel: CHANNEL_ID,
+    from,
+    body: text,
+    chatType: "direct",
+    senderLabel: from,
+  });
+
+  const route = rt.channel.routing.resolveAgentRoute({
+    cfg,
+    channel: CHANNEL_ID,
+    accountId: "default",
+    peer: { kind: "dm", id: from },
+  });
+
+  const ctx = rt.channel.reply.finalizeInboundContext({
+    channel: CHANNEL_ID,
+    accountId: "default",
+    senderId: from,
+    chatType: "direct",
+    text: envelope,
+    route,
+    cfg,
+    messageId: threadId ?? `toq-${Date.now()}`,
+  });
+
+  await rt.channel.reply.dispatchReplyFromConfig({ ctx, cfg });
 }
 
-const toqChannel = {
+export function handleMessage(msg: any): void {
+  if (localAddress && msg.from?.includes(localAddress)) return;
+
+  const body = msg.body as Record<string, unknown> | undefined;
+
+  if (msg.type === STREAM_CHUNK_TYPE) {
+    const streamId = body?.stream_id as string;
+    if (!streamId) return;
+    const buf = streamBuffers.get(streamId) ?? { from: msg.from, text: "", threadId: msg.thread_id };
+    buf.text += (body?.data as any)?.text ?? "";
+    streamBuffers.set(streamId, buf);
+    return;
+  }
+
+  if (msg.type === STREAM_END_TYPE) {
+    const streamId = body?.stream_id as string;
+    if (!streamId) return;
+    const buf = streamBuffers.get(streamId);
+    streamBuffers.delete(streamId);
+    const finalChunk = (body?.data as any)?.text ?? "";
+    const fullText = (buf?.text ?? "") + finalChunk;
+    if (fullText) {
+      dispatchToAgent(buf?.from ?? msg.from, fullText, buf?.threadId);
+    }
+    return;
+  }
+
+  const text = body?.text as string;
+  if (text && msg.type === "message.send") {
+    dispatchToAgent(msg.from, text, msg.thread_id);
+  }
+}
+
+export const toqChannel = {
   id: CHANNEL_ID,
   meta: {
     id: CHANNEL_ID,
@@ -69,9 +105,36 @@ const toqChannel = {
   },
   gateway: {
     startAccount: async (ctx: any) => {
+      const apiUrl = ctx.cfg?.channels?.toq?.apiUrl ?? DEFAULT_API_URL;
+      const client = connect(apiUrl);
       const log = ctx.log ?? console;
-      log.info?.(`[toq] startAccount ctx keys: ${Object.keys(ctx).sort().join(", ")}`);
-      log.info?.(`[toq] pluginApi available: ${!!pluginApi}`);
+      log.info?.(`[toq] connecting to SSE at ${apiUrl}`);
+
+      try {
+        const status = await client.status() as any;
+        localAddress = status?.address ?? "";
+        log.info?.(`[toq] local address: ${localAddress}`);
+      } catch {}
+
+      while (!ctx.abortSignal?.aborted) {
+        try {
+          for await (const msg of client.messages()) {
+            if (ctx.abortSignal?.aborted) break;
+            try {
+              handleMessage(msg);
+            } catch (err) {
+              const detail = err instanceof Error ? err.message : String(err);
+              log.error?.(`[toq] dispatch error: ${detail}`);
+            }
+          }
+        } catch (err) {
+          const detail = err instanceof Error ? err.message : String(err);
+          log.error?.(`[toq] SSE connection lost: ${detail}`);
+          if (!ctx.abortSignal?.aborted) {
+            await new Promise((r) => setTimeout(r, 5000));
+          }
+        }
+      }
     },
     stopAccount: async () => {},
   },
@@ -84,3 +147,8 @@ const toqChannel = {
     },
   },
 };
+
+export default function register(api: any): void {
+  pluginApi = api;
+  api.registerChannel({ plugin: toqChannel });
+}
