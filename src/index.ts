@@ -1,5 +1,5 @@
 import { connect } from "@toqprotocol/toq";
-import EventSource from "eventsource";
+import { EventSource } from "eventsource";
 
 const DEFAULT_API_URL = "http://127.0.0.1:9009";
 export const CHANNEL_ID = "toq";
