@@ -28,7 +28,7 @@ function getAccount(accountId: string): AccountState {
   return state;
 }
 
-function connectGateway(accountId: string, log: any): Promise<void> {
+function connectGateway(accountId: string, gwToken: string, log: any): Promise<void> {
   const state = getAccount(accountId);
   return new Promise((resolve) => {
     const ws = new WebSocket(GATEWAY_WS_URL);
@@ -41,7 +41,7 @@ function connectGateway(accountId: string, log: any): Promise<void> {
         method: "connect",
         params: {
           role: "control",
-          auth: {},
+          auth: { token: gwToken },
           client: { name: `toq-channel-${accountId}`, version: "0.1.0", platform: "plugin" },
         },
       }));
@@ -63,7 +63,7 @@ function connectGateway(accountId: string, log: any): Promise<void> {
       state.wsReady = false;
       state.ws = null;
       log.warn?.(`[toq:${accountId}] gateway WebSocket closed, reconnecting in 5s`);
-      setTimeout(() => connectGateway(accountId, log), 5000);
+      setTimeout(() => connectGateway(accountId, gwToken, log), 5000);
     });
 
     ws.on("error", (err) => {
@@ -165,7 +165,8 @@ export const toqChannel = {
       } catch {}
 
       // Connect to Gateway WebSocket for dispatching
-      await connectGateway(accountId, log);
+      const gwToken = ctx.cfg?.gateway?.auth?.token ?? "";
+      await connectGateway(accountId, gwToken, log);
 
       // Connect to toq SSE for inbound messages
       const es = new EventSource(`${apiUrl}/v1/messages`);
