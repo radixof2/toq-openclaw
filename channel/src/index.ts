@@ -70,18 +70,18 @@ export const toqChannel = {
       cfg.channels?.toq?.accounts?.[id ?? "default"] ?? { accountId: id ?? "default" },
   },
   setup: {
-    applyAccountConfig: (cfg: any, accountId: string, patch: any) => {
+    applyAccountConfig: (ctx: any) => {
+      const cfg = ctx.cfg;
+      const accountId = ctx.accountId ?? "default";
       cfg.channels ??= {};
       cfg.channels.toq ??= {};
       cfg.channels.toq.accounts ??= {};
       cfg.channels.toq.accounts[accountId] = {
         ...cfg.channels.toq.accounts[accountId],
-        ...patch,
         enabled: true,
       };
       return cfg;
     },
-    validate: () => ({ ok: true }),
   },
   gateway: {
     start: async ({ config, logger }: any, ctx: any) => {
