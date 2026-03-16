@@ -46,7 +46,7 @@ const toqChannel = {
                 if (msg.type === STREAM_CHUNK_TYPE) {
                   const streamId = body?.stream_id as string;
                   if (!streamId) continue;
-                  const buf = streamBuffers.get(streamId) ?? { from: msg.from, text: "", threadId: msg.threadId };
+                  const buf = streamBuffers.get(streamId) ?? { from: msg.from, text: "", threadId: msg.thread_id };
                   buf.text += (body?.data as any)?.text ?? "";
                   streamBuffers.set(streamId, buf);
                   continue;
