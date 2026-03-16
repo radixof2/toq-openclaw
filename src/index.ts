@@ -1,6 +1,5 @@
 import { connect } from "@toqprotocol/toq";
 import { EventSource } from "eventsource";
-import WebSocket from "ws";
 
 const DEFAULT_API_URL = "http://127.0.0.1:9009";
 const GATEWAY_WS_URL = "ws://127.0.0.1:18789";
@@ -32,44 +31,57 @@ function connectGateway(accountId: string, gwToken: string, log: any): Promise<v
   const state = getAccount(accountId);
   return new Promise((resolve) => {
     const ws = new WebSocket(GATEWAY_WS_URL);
+    let authenticated = false;
 
-    ws.on("open", () => {
-      state.wsRequestId++;
-      ws.send(JSON.stringify({
-        jsonrpc: "2.0",
-        id: state.wsRequestId,
-        method: "connect",
-        params: {
-          role: "control",
-          auth: { token: gwToken },
-          client: { name: `toq-channel-${accountId}`, version: "0.1.0", platform: "plugin" },
-        },
-      }));
-    });
+    ws.onopen = () => {
+      // Wait for challenge before sending connect
+    };
 
-    ws.on("message", (data: Buffer) => {
+    ws.onmessage = (event: any) => {
       try {
-        const frame = JSON.parse(data.toString());
-        if (frame.id && frame.ok && !state.wsReady) {
+        const frame = JSON.parse(typeof event.data === "string" ? event.data : event.data.toString());
+
+        // Handle connect challenge
+        if (frame.event === "connect.challenge") {
+          state.wsRequestId++;
+          ws.send(JSON.stringify({
+            jsonrpc: "2.0",
+            id: state.wsRequestId,
+            method: "connect",
+            params: {
+              role: "control",
+              auth: { token: gwToken },
+              client: { name: `toq-channel-${accountId}`, version: "0.1.0", platform: "plugin" },
+            },
+          }));
+          return;
+        }
+
+        // Handle connect response
+        if (frame.id && frame.ok && !authenticated) {
           log.info?.(`[toq:${accountId}] gateway WebSocket connected`);
           state.ws = ws;
           state.wsReady = true;
+          authenticated = true;
           resolve();
+          return;
         }
       } catch {}
-    });
+    };
 
-    ws.on("close", () => {
+    ws.onclose = () => {
       state.wsReady = false;
       state.ws = null;
-      log.warn?.(`[toq:${accountId}] gateway WebSocket closed, reconnecting in 5s`);
-      setTimeout(() => connectGateway(accountId, gwToken, log), 5000);
-    });
+      if (authenticated) {
+        log.warn?.(`[toq:${accountId}] gateway WebSocket closed, reconnecting in 5s`);
+        setTimeout(() => connectGateway(accountId, gwToken, log), 5000);
+      }
+    };
 
-    ws.on("error", (err) => {
-      log.error?.(`[toq:${accountId}] gateway WebSocket error: ${err.message}`);
+    ws.onerror = (err: any) => {
+      log.error?.(`[toq:${accountId}] gateway WebSocket error: ${err.message ?? "unknown"}`);
       resolve();
-    });
+    };
   });
 }
 
