@@ -2,18 +2,16 @@ import { connect } from "@toqprotocol/toq";
 import { EventSource } from "eventsource";
 
 const DEFAULT_API_URL = "http://127.0.0.1:9009";
-const GATEWAY_WS_URL = "ws://127.0.0.1:18789";
 export const CHANNEL_ID = "toq";
 export const STREAM_CHUNK_TYPE = "message.stream.chunk";
 export const STREAM_END_TYPE = "message.stream.end";
 
 export const streamBuffers = new Map<string, { from: string; text: string; threadId?: string }>();
 
+let pluginApi: any = null;
+
 interface AccountState {
   localAddress: string;
-  ws: WebSocket | null;
-  wsReady: boolean;
-  wsRequestId: number;
 }
 
 const accounts = new Map<string, AccountState>();
@@ -21,87 +19,67 @@ const accounts = new Map<string, AccountState>();
 function getAccount(accountId: string): AccountState {
   let state = accounts.get(accountId);
   if (!state) {
-    state = { localAddress: "", ws: null, wsReady: false, wsRequestId: 0 };
+    state = { localAddress: "" };
     accounts.set(accountId, state);
   }
   return state;
 }
 
-function connectGateway(accountId: string, gwToken: string, log: any): Promise<void> {
-  const state = getAccount(accountId);
-  return new Promise((resolve) => {
-    const ws = new WebSocket(GATEWAY_WS_URL);
-    let authenticated = false;
+function getRuntime(): any {
+  return pluginApi?.runtime;
+}
 
-    ws.onopen = () => {
-      // Wait for challenge before sending connect
-    };
+function dispatchToAgent(accountId: string, from: string, text: string, cfg: any, log: any, threadId?: string): void {
+  const rt = getRuntime();
+  const dispatch = rt?.channel?.reply?.dispatchReplyWithBufferedBlockDispatcher;
+  if (!dispatch) {
+    log.warn?.(`[toq:${accountId}] runtime dispatch not available`);
+    return;
+  }
 
-    ws.onmessage = (event: any) => {
-      try {
-        const frame = JSON.parse(typeof event.data === "string" ? event.data : event.data.toString());
+  const sessionKey = `toq:${accountId}:${from}`;
+  const toqClient = connect();
 
-        // Handle connect challenge
-        if (frame.event === "connect.challenge") {
-          state.wsRequestId++;
-          ws.send(JSON.stringify({
-            jsonrpc: "2.0",
-            id: state.wsRequestId,
-            method: "connect",
-            params: {
-              role: "control",
-              auth: { token: gwToken },
-              client: { name: `toq-channel-${accountId}`, version: "0.1.0", platform: "plugin" },
-            },
-          }));
-          return;
+  const ctx = rt.channel.reply.finalizeInboundContext({
+    Body: text,
+    From: from,
+    To: `toq:${accountId}`,
+    SessionKey: sessionKey,
+    AccountId: accountId,
+    ChatType: "direct",
+    Provider: "toq",
+    Surface: "toq",
+    MessageSid: threadId ?? `toq-${Date.now()}`,
+    CommandAuthorized: true,
+    OriginatingChannel: "toq",
+    OriginatingTo: `toq:${accountId}`,
+  });
+
+  dispatch({
+    ctx,
+    cfg,
+    dispatcherOptions: {
+      deliver: async (payload: any) => {
+        const replyText = payload?.text ?? payload?.body ?? "";
+        if (!replyText) return;
+        try {
+          await toqClient.send(from, replyText, { thread_id: threadId });
+          log.info?.(`[toq:${accountId}] replied to ${from}`);
+        } catch (err) {
+          const detail = err instanceof Error ? err.message : String(err);
+          log.error?.(`[toq:${accountId}] reply failed: ${detail}`);
         }
-
-        // Handle connect response
-        if (frame.id && frame.ok && !authenticated) {
-          log.info?.(`[toq:${accountId}] gateway WebSocket connected`);
-          state.ws = ws;
-          state.wsReady = true;
-          authenticated = true;
-          resolve();
-          return;
-        }
-      } catch {}
-    };
-
-    ws.onclose = () => {
-      state.wsReady = false;
-      state.ws = null;
-      if (authenticated) {
-        log.warn?.(`[toq:${accountId}] gateway WebSocket closed, reconnecting in 5s`);
-        setTimeout(() => connectGateway(accountId, gwToken, log), 5000);
-      }
-    };
-
-    ws.onerror = (err: any) => {
-      log.error?.(`[toq:${accountId}] gateway WebSocket error: ${err.message ?? "unknown"}`);
-      resolve();
-    };
+      },
+      onError: (err: unknown) => {
+        log.error?.(`[toq:${accountId}] dispatch error: ${String(err)}`);
+      },
+    },
+  }).catch((err: unknown) => {
+    log.error?.(`[toq:${accountId}] dispatch failed: ${String(err)}`);
   });
 }
 
-function sendToAgent(accountId: string, from: string, text: string, threadId?: string): void {
-  const state = getAccount(accountId);
-  if (!state.ws || !state.wsReady) return;
-
-  const meta = threadId ? ` (thread: ${threadId})` : "";
-  const message = `[toq] Message from ${from}${meta}:\n\n${text}`;
-
-  state.wsRequestId++;
-  state.ws.send(JSON.stringify({
-    jsonrpc: "2.0",
-    id: state.wsRequestId,
-    method: "agent",
-    params: { message },
-  }));
-}
-
-export function handleMessage(accountId: string, msg: any): void {
+export function handleMessage(accountId: string, msg: any, cfg: any, log: any): void {
   const state = getAccount(accountId);
   if (state.localAddress && msg.from?.includes(state.localAddress)) return;
 
@@ -124,14 +102,14 @@ export function handleMessage(accountId: string, msg: any): void {
     const finalChunk = (body?.data as any)?.text ?? "";
     const fullText = (buf?.text ?? "") + finalChunk;
     if (fullText) {
-      sendToAgent(accountId, buf?.from ?? msg.from, fullText, buf?.threadId);
+      dispatchToAgent(accountId, buf?.from ?? msg.from, fullText, cfg, log, buf?.threadId);
     }
     return;
   }
 
   const text = body?.text as string;
   if (text && msg.type === "message.send") {
-    sendToAgent(accountId, msg.from, text, msg.thread_id);
+    dispatchToAgent(accountId, msg.from, text, cfg, log, msg.thread_id);
   }
 }
 
@@ -166,6 +144,7 @@ export const toqChannel = {
       const accountId = ctx.accountId ?? "default";
       const apiUrl = ctx.account?.apiUrl ?? ctx.cfg?.channels?.toq?.apiUrl ?? DEFAULT_API_URL;
       const log = ctx.log ?? console;
+      const cfg = ctx.cfg;
       const state = getAccount(accountId);
 
       // Learn local address to filter outbound messages
@@ -176,10 +155,6 @@ export const toqChannel = {
         log.info?.(`[toq:${accountId}] local address: ${state.localAddress}`);
       } catch {}
 
-      // Connect to Gateway WebSocket for dispatching
-      const gwToken = ctx.cfg?.gateway?.auth?.token ?? "";
-      await connectGateway(accountId, gwToken, log);
-
       // Connect to toq SSE for inbound messages
       const es = new EventSource(`${apiUrl}/v1/messages`);
       log.info?.(`[toq:${accountId}] SSE connected to ${apiUrl}`);
@@ -187,7 +162,7 @@ export const toqChannel = {
       es.onmessage = (event: any) => {
         try {
           const msg = JSON.parse(event.data);
-          handleMessage(accountId, msg);
+          handleMessage(accountId, msg, cfg, log);
         } catch (err) {
           const detail = err instanceof Error ? err.message : String(err);
           log.error?.(`[toq:${accountId}] message error: ${detail}`);
@@ -203,7 +178,6 @@ export const toqChannel = {
         if (ctx.abortSignal?.aborted) { es.close(); return resolve(); }
         ctx.abortSignal?.addEventListener("abort", () => {
           es.close();
-          state.ws?.close();
           accounts.delete(accountId);
           resolve();
         }, { once: true });
@@ -222,5 +196,6 @@ export const toqChannel = {
 };
 
 export default function register(api: any): void {
+  pluginApi = api;
   api.registerChannel({ plugin: toqChannel });
 }
