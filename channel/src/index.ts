@@ -69,6 +69,20 @@ export const toqChannel = {
     resolveAccount: (cfg: any, id?: string) =>
       cfg.channels?.toq?.accounts?.[id ?? "default"] ?? { accountId: id ?? "default" },
   },
+  setup: {
+    applyAccountConfig: (cfg: any, accountId: string, patch: any) => {
+      cfg.channels ??= {};
+      cfg.channels.toq ??= {};
+      cfg.channels.toq.accounts ??= {};
+      cfg.channels.toq.accounts[accountId] = {
+        ...cfg.channels.toq.accounts[accountId],
+        ...patch,
+        enabled: true,
+      };
+      return cfg;
+    },
+    validate: () => ({ ok: true }),
+  },
   gateway: {
     start: async ({ config, logger }: any, ctx: any) => {
       const apiUrl = config?.channels?.toq?.apiUrl ?? DEFAULT_API_URL;
@@ -111,14 +125,6 @@ export const toqChannel = {
 };
 
 export default function register(api: any): void {
-  // Auto-configure the toq channel if not already present
-  const cfg = api.config ?? {};
-  if (!cfg.channels?.toq?.accounts?.default) {
-    api.configPatch?.({
-      channels: { toq: { accounts: { default: { enabled: true } } } },
-    });
-  }
-
   api.registerChannel({ plugin: toqChannel });
   api.registerService({
     id: "toq-listener",
