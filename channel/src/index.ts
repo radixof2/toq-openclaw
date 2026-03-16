@@ -111,6 +111,14 @@ export const toqChannel = {
 };
 
 export default function register(api: any): void {
+  // Auto-configure the toq channel if not already present
+  const cfg = api.config ?? {};
+  if (!cfg.channels?.toq?.accounts?.default) {
+    api.configPatch?.({
+      channels: { toq: { accounts: { default: { enabled: true } } } },
+    });
+  }
+
   api.registerChannel({ plugin: toqChannel });
   api.registerService({
     id: "toq-listener",
