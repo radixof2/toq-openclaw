@@ -11,7 +11,7 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@toqprotocol/toq": ">=0.1.0"
+    "@toqprotocol/toq": ">=0.1.0-dev.1"
   },
   "devDependencies": {
     "typescript": "^5.7",
