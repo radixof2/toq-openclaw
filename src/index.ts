@@ -137,6 +137,7 @@ export const toqChannel = {
       es.onmessage = (event: any) => {
         try {
           const msg = JSON.parse(event.data);
+          log.info?.(`[toq] SSE event: type=${msg.type} from=${msg.from}`);
           handleMessage(msg);
         } catch (err) {
           const detail = err instanceof Error ? err.message : String(err);
