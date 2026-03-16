@@ -16,6 +16,22 @@ export default function register(api: any): void {
     if (api.runtime.channel) {
       const chKeys = Object.keys(api.runtime.channel).sort();
       api.logger?.info?.(`[toq] api.runtime.channel keys: ${chKeys.join(", ")}`);
+      if (api.runtime.channel.reply) {
+        const replyKeys = Object.keys(api.runtime.channel.reply).sort();
+        api.logger?.info?.(`[toq] api.runtime.channel.reply keys: ${replyKeys.join(", ")}`);
+      }
+      if (api.runtime.channel.routing) {
+        const routeKeys = Object.keys(api.runtime.channel.routing).sort();
+        api.logger?.info?.(`[toq] api.runtime.channel.routing keys: ${routeKeys.join(", ")}`);
+      }
+      if (api.runtime.channel.session) {
+        const sessKeys = Object.keys(api.runtime.channel.session).sort();
+        api.logger?.info?.(`[toq] api.runtime.channel.session keys: ${sessKeys.join(", ")}`);
+      }
+      if (api.runtime.channel.activity) {
+        const actKeys = Object.keys(api.runtime.channel.activity).sort();
+        api.logger?.info?.(`[toq] api.runtime.channel.activity keys: ${actKeys.join(", ")}`);
+      }
     }
     if (api.runtime.system) {
       const sysKeys = Object.keys(api.runtime.system).sort();
