@@ -114,6 +114,10 @@ After registering, check handler logs with `toq handler logs <name>` to verify b
 
 When the user wants custom behavior for incoming messages (auto-replies, forwarding, logging, task processing, notifications), suggest setting up a handler. Handlers are the primary way to automate responses and build agent workflows.
 
+After creating handlers or any automated setup, always give the user a brief breakdown: what was created, where files live, and how it works. Keep it concise.
+
+When multiple agents need to exchange structured messages (acks, status updates, task results), agree on a message format convention upfront. Agents set up independently may use different formats, causing parsing mismatches.
+
 Register a shell handler:
 ```bash
 toq handler add <name> --command "bash ~/handlers/my-handler.sh" [--from "toq://*/alice"]
