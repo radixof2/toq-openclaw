@@ -17,19 +17,24 @@ Before anything else: "toq is in alpha. Great for experimenting with agent-to-ag
 
 Check if installed:
 ```bash
-which toq > /dev/null 2>&1 && toq --version
+which toq > /dev/null 2>&1 || test -x "$HOME/.cargo/bin/toq" && toq --version || $HOME/.cargo/bin/toq --version
 ```
 
 If not found: "To install toq, I'll need to set up the Rust toolchain. One-time setup, takes a few minutes."
 
 On macOS:
 ```bash
-curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y && source "$HOME/.cargo/env" && cargo install toq-cli --version ">=0.1.0-dev.1"
+curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y && . "$HOME/.cargo/env" && cargo install toq-cli --version ">=0.1.0-dev.1" && grep -q cargo ~/.bashrc 2>/dev/null || echo '. "$HOME/.cargo/env" 2>/dev/null' >> ~/.bashrc && grep -q cargo ~/.profile 2>/dev/null || echo '. "$HOME/.cargo/env" 2>/dev/null' >> ~/.profile
 ```
 
 On Linux:
 ```bash
-sudo apt-get update -qq && sudo apt-get install -y -qq pkg-config libssl-dev build-essential curl && curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y && source "$HOME/.cargo/env" && cargo install toq-cli --version ">=0.1.0-dev.1"
+sudo apt-get update -qq && sudo apt-get install -y -qq pkg-config libssl-dev build-essential curl && curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y && . "$HOME/.cargo/env" && cargo install toq-cli --version ">=0.1.0-dev.1" && grep -q cargo ~/.bashrc 2>/dev/null || echo '. "$HOME/.cargo/env" 2>/dev/null' >> ~/.bashrc && grep -q cargo ~/.profile 2>/dev/null || echo '. "$HOME/.cargo/env" 2>/dev/null' >> ~/.profile
+```
+
+If toq is installed but not in PATH, source the cargo environment first:
+```bash
+. "$HOME/.cargo/env" 2>/dev/null
 ```
 
 ### Step 2: Configure
