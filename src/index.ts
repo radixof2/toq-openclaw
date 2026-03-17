@@ -80,7 +80,7 @@ export default function register(api: any): void {
   api.registerTool({
     name: "toq_send",
     description: "Send a toq message to a remote agent. Use this to reply to inbound toq messages or start new conversations.",
-    input: {
+    parameters: {
       type: "object",
       required: ["address", "text"],
       properties: {
@@ -101,7 +101,7 @@ export default function register(api: any): void {
   api.registerTool({
     name: "toq_status",
     description: "Check the status of a toq endpoint daemon.",
-    input: {
+    parameters: {
       type: "object",
       required: ["endpoint"],
       properties: {
@@ -118,7 +118,7 @@ export default function register(api: any): void {
   api.registerTool({
     name: "toq_peers",
     description: "List known peers for a toq endpoint.",
-    input: {
+    parameters: {
       type: "object",
       required: ["endpoint"],
       properties: {
@@ -135,7 +135,7 @@ export default function register(api: any): void {
   api.registerTool({
     name: "toq_approve",
     description: "Approve a pending toq connection request.",
-    input: {
+    parameters: {
       type: "object",
       required: ["id"],
       properties: {
@@ -153,7 +153,7 @@ export default function register(api: any): void {
   api.registerTool({
     name: "toq_block",
     description: "Block a toq peer from connecting.",
-    input: {
+    parameters: {
       type: "object",
       required: ["id"],
       properties: {
