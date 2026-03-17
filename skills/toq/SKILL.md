@@ -102,6 +102,13 @@ Register a shell handler:
 toq handler add <name> --command "bash /path/to/script.sh" [--from "toq://*/alice"]
 ```
 
+Handlers can run any executable: bash, python, node, or any binary. The command is passed to `sh -c`, so pipes and redirects work.
+
+```bash
+toq handler add <name> --command "python3 /path/to/handler.py"
+toq handler add <name> --command "node /path/to/handler.js"
+```
+
 Register an LLM handler:
 ```bash
 toq handler add <name> --provider <provider> --model <model> --prompt "..." [--auto-close]
