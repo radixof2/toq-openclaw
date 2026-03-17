@@ -29,6 +29,20 @@ export default function register(api: any): void {
   const clients = new Map<string, ReturnType<typeof connect>>();
   const localAddresses = new Map<string, string>();
   const streamBuffers = new Map<string, { from: string; text: string; threadId?: string }>();
+  const pendingMessages: { endpoint: string; from: string; text: string; threadId?: string; timestamp: string }[] = [];
+
+  // --- Hook: inject pending toq messages into agent context ---
+
+  api.on("before_prompt_build", (_event: any, _ctx: any) => {
+    if (pendingMessages.length === 0) return {};
+    const msgs = pendingMessages.splice(0);
+    const lines = msgs.map((m) =>
+      `[toq message] endpoint=${m.endpoint} from=${m.from}${m.threadId ? ` thread=${m.threadId}` : ""}: ${m.text}`
+    );
+    return {
+      appendSystemContext: `\n\nYou have ${msgs.length} new inbound toq message(s). Present them to the human naturally and ask about routing preferences if this is a new sender.\n\n${lines.join("\n")}`,
+    };
+  }, { priority: 50 });
 
   // --- Service: SSE listener ---
 
@@ -224,28 +238,21 @@ export default function register(api: any): void {
     }
   }
 
-  async function dispatch(name: string, ep: EndpointConfig, from: string, text: string, threadId?: string): Promise<void> {
-    const trigger = `[toq-inbound] endpoint=${name} from=${from}${threadId ? ` thread=${threadId}` : ""} text=${text}`;
-    const payload: Record<string, unknown> = {
-      message: trigger,
-      name: from,
-    };
-    if (ep.agentId) payload.agentId = ep.agentId;
+  async function dispatch(name: string, _ep: EndpointConfig, from: string, text: string, threadId?: string): Promise<void> {
+    pendingMessages.push({ endpoint: name, from, text, threadId, timestamp: new Date().toISOString() });
+    log.info?.(`[toq:${name}] queued message from ${from}`);
 
     try {
-      const res = await fetch(`${hooksUrl}/hooks/agent`, {
+      await fetch(`${hooksUrl}/hooks/wake`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
           Authorization: `Bearer ${hooksToken}`,
         },
-        body: JSON.stringify(payload),
+        body: JSON.stringify({ text: "toq", mode: "now" }),
       });
-      const result = (await res.json()) as any;
-      if (!result.ok) log.error?.(`[toq:${name}] hooks error: ${result.error}`);
-      else log.info?.(`[toq:${name}] dispatched from ${from}`);
     } catch (err) {
-      log.error?.(`[toq:${name}] dispatch failed: ${err}`);
+      log.error?.(`[toq:${name}] wake failed: ${err}`);
     }
   }
 }
