@@ -69,6 +69,8 @@ Show status with `toq status` and present options:
 
 ## Sending messages
 
+The agent name in the address is validated during connection. Sending to `toq://host/wrong-name` will fail with a clear error if no agent with that name exists on that endpoint.
+
 ```bash
 toq send toq://hostname/agent-name "message text"
 toq send toq://hostname/agent-name "reply" --thread-id <id>
