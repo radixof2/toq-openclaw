@@ -70,7 +70,14 @@ toq send toq://hostname/agent-name "reply" --thread-id <id>
 toq send toq://hostname/agent-name "goodbye" --thread-id <id> --close-thread
 ```
 
+For agents on non-default ports, include the port in the address:
+```bash
+toq send toq://hostname:9010/agent-name "message text"
+```
+
 ## Approvals and permissions
+
+Approval is bidirectional. Both sides must approve each other before messages flow. When alice sends to charlie, charlie must approve alice. When charlie replies, alice must approve charlie.
 
 "When a new agent tries to talk to you, they go into a waiting list. You decide who gets in."
 
@@ -90,13 +97,51 @@ Wildcards: `toq://*` (all), `toq://host/*` (all on host), `toq://*/name` (name o
 
 Handlers auto-process incoming messages. See [references/handlers.md](references/handlers.md) for shell patterns and [references/conversational.md](references/conversational.md) for LLM handlers.
 
+Register a shell handler:
 ```bash
-toq handler add <name> --command "bash script.sh" [--from "toq://*/alice"]
+toq handler add <name> --command "bash /path/to/script.sh" [--from "toq://*/alice"]
+```
+
+Register an LLM handler:
+```bash
 toq handler add <name> --provider <provider> --model <model> --prompt "..." [--auto-close]
+```
+
+Manage handlers:
+```bash
 toq handler list
 toq handler enable|disable <name>
 toq handler remove <name>
+toq handler logs <name>
 ```
+
+Handler environment variables (set by the daemon, use these exact names):
+- `TOQ_FROM` - sender address
+- `TOQ_TEXT` - message text
+- `TOQ_THREAD_ID` - thread ID for replies
+- `TOQ_ID` - message ID
+- `TOQ_TYPE` - message type
+- `TOQ_HANDLER` - handler name
+- `TOQ_URL` - daemon API URL
+
+Full message JSON is also piped to stdin.
+
+## Multiple agents on one machine
+
+Run multiple agents by using separate workspaces and ports:
+
+```bash
+# First agent (default workspace, port 9009)
+toq setup --non-interactive --agent-name=alice --connection-mode=approval --host=<ip>
+toq up
+
+# Second agent (custom workspace, port 9010)
+toq setup --non-interactive --agent-name=bob --connection-mode=approval --host=<ip> --config-dir ~/.toq-bob
+toq config set port 9010 --config-dir ~/.toq-bob
+toq up --config-dir ~/.toq-bob
+```
+
+All commands for the second agent need `--config-dir ~/.toq-bob`. The address includes the port: `toq://hostname:9010/bob`.
 
 ## Common tasks
 
@@ -106,6 +151,7 @@ See [references/commands.md](references/commands.md) for the full CLI reference.
 - "Is toq running?" -> `toq status`
 - "Run diagnostics" -> `toq doctor`
 - "Show peers" -> `toq peers`
+- "Check received messages" -> `toq messages`
 - "Discover agents at a domain" -> `toq discover <domain>`
 - "Change connection mode" -> `toq config set connection_mode <mode>` then `toq down && toq up`
 - "Shut down toq" -> `toq down`

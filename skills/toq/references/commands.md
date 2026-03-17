@@ -1,5 +1,7 @@
 # CLI Commands
 
+All commands accept `--config-dir <path>` to target a specific agent workspace. Omit for the default workspace (`~/.toq/`).
+
 ## Getting started
 - `toq init [--name <n>] [--host <h>] [--port <p>]` - Initialize a workspace
 - `toq setup [--non-interactive] [--agent-name <n>] [--host <h>] [--connection-mode <m>]` - Guided setup
@@ -17,6 +19,8 @@
 - `toq peers` - List known peers
 - `toq ping <address>` - Ping a remote agent (discovers public key)
 - `toq discover <domain>` - Discover agents via DNS
+
+Addresses include port when non-default: `toq://host:9010/agent`
 
 ## Handlers
 - `toq handler add <name> --command <cmd>` - Shell handler
