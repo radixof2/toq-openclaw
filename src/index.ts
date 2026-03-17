@@ -99,7 +99,7 @@ export default function register(api: any): void {
     name: "toq_status",
     description: "Check the status of a toq endpoint daemon.",
     input: Type.Object({
-      endpoint: Type.Optional(Type.String({ description: "Endpoint name (default: 'default')" })),
+      endpoint: Type.String({ description: "Endpoint name (use 'default' for the default endpoint)" }),
     }),
     execute: async (args: any) => {
       const client = clients.get(args.endpoint ?? "default");
@@ -112,7 +112,7 @@ export default function register(api: any): void {
     name: "toq_peers",
     description: "List known peers for a toq endpoint.",
     input: Type.Object({
-      endpoint: Type.Optional(Type.String({ description: "Endpoint name (default: 'default')" })),
+      endpoint: Type.String({ description: "Endpoint name (use 'default' for the default endpoint)" }),
     }),
     execute: async (args: any) => {
       const client = clients.get(args.endpoint ?? "default");
