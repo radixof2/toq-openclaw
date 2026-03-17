@@ -92,9 +92,9 @@ export default function register(api: any): void {
     },
     execute: async (args: any) => {
       const client = clients.get(args.endpoint ?? "default");
-      if (!client) return { error: `Unknown endpoint: ${args.endpoint ?? "default"}` };
+      if (!client) return { result: "error", error: `Unknown endpoint: ${args.endpoint ?? "default"}` };
       await client.send(args.address, args.text, args.thread_id ? { thread_id: args.thread_id } : undefined);
-      return { ok: true, sent_to: args.address };
+      return { result: "success", details: { sent_to: args.address } };
     },
   });
 
@@ -110,8 +110,9 @@ export default function register(api: any): void {
     },
     execute: async (args: any) => {
       const client = clients.get(args.endpoint ?? "default");
-      if (!client) return { error: `Unknown endpoint: ${args.endpoint ?? "default"}` };
-      return await client.status();
+      if (!client) return { result: "error", error: `Unknown endpoint: ${args.endpoint ?? "default"}` };
+      const status = await client.status();
+      return { result: "success", details: status };
     },
   });
 
@@ -127,26 +128,46 @@ export default function register(api: any): void {
     },
     execute: async (args: any) => {
       const client = clients.get(args.endpoint ?? "default");
-      if (!client) return { error: `Unknown endpoint: ${args.endpoint ?? "default"}` };
-      return await client.peers();
+      if (!client) return { result: "error", error: `Unknown endpoint: ${args.endpoint ?? "default"}` };
+      const peers = await client.peers();
+      return { result: "success", details: peers };
+    },
+  });
+
+  api.registerTool({
+    name: "toq_approvals",
+    description: "List pending toq connection requests waiting for approval.",
+    parameters: {
+      type: "object",
+      required: ["endpoint"],
+      properties: {
+        endpoint: { type: "string", description: "Endpoint name (use 'default' for the default endpoint)" },
+      },
+    },
+    execute: async (args: any) => {
+      const client = clients.get(args.endpoint ?? "default");
+      if (!client) return { result: "error", error: `Unknown endpoint: ${args.endpoint ?? "default"}` };
+      const approvals = await client.approvals();
+      return { result: "success", details: { pending: approvals } };
     },
   });
 
   api.registerTool({
     name: "toq_approve",
-    description: "Approve a pending toq connection request.",
+    description: "Approve a pending toq connection request. Use toq_approvals first to get the peer key.",
     parameters: {
       type: "object",
       required: ["id"],
       properties: {
-        id: { type: "string", description: "Peer ID to approve" },
+        id: { type: "string", description: "The ed25519 public key of the peer to approve (from toq_approvals output)" },
         endpoint: { type: "string", description: "Endpoint name (default: 'default')" },
       },
     },
     execute: async (args: any) => {
       const client = clients.get(args.endpoint ?? "default");
-      if (!client) return { error: `Unknown endpoint: ${args.endpoint ?? "default"}` };
-      return await client.approve(args.id);
+      if (!client) return { result: "error", error: `Unknown endpoint: ${args.endpoint ?? "default"}` };
+      await client.approve(args.id);
+      return { result: "success", details: { approved: args.id } };
     },
   });
 
@@ -163,8 +184,9 @@ export default function register(api: any): void {
     },
     execute: async (args: any) => {
       const client = clients.get(args.endpoint ?? "default");
-      if (!client) return { error: `Unknown endpoint: ${args.endpoint ?? "default"}` };
-      return await client.block(args.id);
+      if (!client) return { result: "error", error: `Unknown endpoint: ${args.endpoint ?? "default"}` };
+      await client.block(args.id);
+      return { result: "success", details: { blocked: args.id } };
     },
   });
 
