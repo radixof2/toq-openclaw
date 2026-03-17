@@ -106,6 +106,7 @@ export default function register(api: any): void {
       properties: {
         endpoint: { type: "string", description: "Endpoint name (default: 'default')" },
       },
+      required: [],
     },
     execute: async (args: any) => {
       const client = clients.get(args.endpoint ?? "default");
@@ -122,6 +123,7 @@ export default function register(api: any): void {
       properties: {
         endpoint: { type: "string", description: "Endpoint name (default: 'default')" },
       },
+      required: [],
     },
     execute: async (args: any) => {
       const client = clients.get(args.endpoint ?? "default");
