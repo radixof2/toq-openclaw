@@ -1,7 +1,6 @@
 import { connect } from "@toqprotocol/toq";
 import { EventSource } from "eventsource";
 import { Type } from "@sinclair/typebox";
-import { emptyPluginConfigSchema } from "openclaw/plugin-sdk";
 
 const DEFAULT_DAEMON_URL = "http://127.0.0.1:9009";
 const DEFAULT_HOOKS_URL = "http://127.0.0.1:18789";
@@ -17,12 +16,7 @@ interface PluginConfig {
   hooksUrl?: string;
 }
 
-const plugin = {
-  id: "toq-openclaw",
-  name: "toq protocol",
-  description: "Secure agent-to-agent communication via toq protocol",
-  configSchema: emptyPluginConfigSchema(),
-  register(api: any): void {
+export default function register(api: any): void {
   const log = api.logger;
   const cfg = (api.pluginConfig ?? {}) as PluginConfig;
 
@@ -213,7 +207,4 @@ const plugin = {
       log.error?.(`[toq:${name}] dispatch failed: ${err}`);
     }
   }
-  } // end register
-};
-
-export default plugin;
+}
