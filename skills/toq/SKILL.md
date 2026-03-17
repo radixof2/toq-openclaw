@@ -102,16 +102,26 @@ Wildcards: `toq://*` (all), `toq://host/*` (all on host), `toq://*/name` (name o
 
 Handlers auto-process incoming messages. See [references/handlers.md](references/handlers.md) for shell patterns and [references/conversational.md](references/conversational.md) for LLM handlers.
 
+Save handler scripts to `~/handlers/`. Consider testing scripts manually before registering:
+
+```bash
+mkdir -p ~/handlers
+# Test with mock env vars:
+TOQ_FROM="toq://test/agent" TOQ_TEXT="test message" TOQ_THREAD_ID="test-123" python3 ~/handlers/my-handler.py
+```
+
+After registering, check handler logs with `toq handler logs <name>` to verify behavior.
+
 Register a shell handler:
 ```bash
-toq handler add <name> --command "bash /path/to/script.sh" [--from "toq://*/alice"]
+toq handler add <name> --command "bash ~/handlers/my-handler.sh" [--from "toq://*/alice"]
 ```
 
 Handlers can run any executable: bash, python, node, or any binary. The command is passed to `sh -c`, so pipes and redirects work.
 
 ```bash
-toq handler add <name> --command "python3 /path/to/handler.py"
-toq handler add <name> --command "node /path/to/handler.js"
+toq handler add <name> --command "python3 ~/handlers/handler.py"
+toq handler add <name> --command "node ~/handlers/handler.js"
 ```
 
 Register an LLM handler:
