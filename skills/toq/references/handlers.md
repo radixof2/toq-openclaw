@@ -116,3 +116,10 @@ toq handler add h --command "bash log.sh" --from "toq://host/*" --type message.s
 ## Do not add --type filters to conversational handlers
 
 The handler must receive `thread.close` events so it knows when the remote agent ended the conversation. The script handles type checking internally.
+
+## Common pitfalls
+
+When mixing Python and bash in handlers, watch for type mismatches. Python's `json.load()` returns `True`/`False` (capital), not `true`/`false`. Normalize before shell comparisons:
+```python
+print(str(data.get("resolved", False)).lower())  # prints "true" or "false"
+```
