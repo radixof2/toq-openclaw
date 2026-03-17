@@ -1,201 +1,227 @@
 import { connect } from "@toqprotocol/toq";
 import { EventSource } from "eventsource";
 
-const DEFAULT_API_URL = "http://127.0.0.1:9009";
-export const CHANNEL_ID = "toq";
-export const STREAM_CHUNK_TYPE = "message.stream.chunk";
-export const STREAM_END_TYPE = "message.stream.end";
+const DEFAULT_DAEMON_URL = "http://127.0.0.1:9009";
+const DEFAULT_HOOKS_URL = "http://127.0.0.1:18789";
 
-export const streamBuffers = new Map<string, { from: string; text: string; threadId?: string }>();
-
-let pluginApi: any = null;
-
-interface AccountState {
-  localAddress: string;
+interface EndpointConfig {
+  url: string;
+  agentId?: string;
 }
 
-const accounts = new Map<string, AccountState>();
-
-function getAccount(accountId: string): AccountState {
-  let state = accounts.get(accountId);
-  if (!state) {
-    state = { localAddress: "" };
-    accounts.set(accountId, state);
-  }
-  return state;
+interface PluginConfig {
+  endpoints?: Record<string, EndpointConfig>;
+  hooksToken?: string;
+  hooksUrl?: string;
 }
-
-function getRuntime(): any {
-  return pluginApi?.runtime;
-}
-
-function dispatchToAgent(accountId: string, from: string, text: string, cfg: any, log: any, threadId?: string): void {
-  const rt = getRuntime();
-  const dispatch = rt?.channel?.reply?.dispatchReplyWithBufferedBlockDispatcher;
-  if (!dispatch) {
-    log.warn?.(`[toq:${accountId}] runtime dispatch not available`);
-    return;
-  }
-
-  const sessionKey = `toq:${accountId}:${from}`;
-  const toqClient = connect();
-
-  const ctx = rt.channel.reply.finalizeInboundContext({
-    Body: text,
-    From: from,
-    To: `toq:${accountId}`,
-    SessionKey: sessionKey,
-    AccountId: accountId,
-    ChatType: "direct",
-    Provider: "toq",
-    Surface: "toq",
-    MessageSid: threadId ?? `toq-${Date.now()}`,
-    CommandAuthorized: true,
-    OriginatingChannel: "toq",
-    OriginatingTo: `toq:${accountId}`,
-  });
-
-  dispatch({
-    ctx,
-    cfg,
-    dispatcherOptions: {
-      deliver: async (payload: any) => {
-        const replyText = payload?.text ?? payload?.body ?? "";
-        if (!replyText) return;
-        try {
-          await toqClient.send(from, replyText, { thread_id: threadId });
-          log.info?.(`[toq:${accountId}] replied to ${from}`);
-        } catch (err) {
-          const detail = err instanceof Error ? err.message : String(err);
-          log.error?.(`[toq:${accountId}] reply failed: ${detail}`);
-        }
-      },
-      onError: (err: unknown) => {
-        log.error?.(`[toq:${accountId}] dispatch error: ${String(err)}`);
-      },
-    },
-  }).catch((err: unknown) => {
-    log.error?.(`[toq:${accountId}] dispatch failed: ${String(err)}`);
-  });
-}
-
-export function handleMessage(accountId: string, msg: any, cfg: any, log: any): void {
-  const state = getAccount(accountId);
-  if (state.localAddress && msg.from?.includes(state.localAddress)) return;
-
-  const body = msg.body as Record<string, unknown> | undefined;
-
-  if (msg.type === STREAM_CHUNK_TYPE) {
-    const streamId = body?.stream_id as string;
-    if (!streamId) return;
-    const buf = streamBuffers.get(streamId) ?? { from: msg.from, text: "", threadId: msg.thread_id };
-    buf.text += (body?.data as any)?.text ?? "";
-    streamBuffers.set(streamId, buf);
-    return;
-  }
-
-  if (msg.type === STREAM_END_TYPE) {
-    const streamId = body?.stream_id as string;
-    if (!streamId) return;
-    const buf = streamBuffers.get(streamId);
-    streamBuffers.delete(streamId);
-    const finalChunk = (body?.data as any)?.text ?? "";
-    const fullText = (buf?.text ?? "") + finalChunk;
-    if (fullText) {
-      dispatchToAgent(accountId, buf?.from ?? msg.from, fullText, cfg, log, buf?.threadId);
-    }
-    return;
-  }
-
-  const text = body?.text as string;
-  if (text && msg.type === "message.send") {
-    dispatchToAgent(accountId, msg.from, text, cfg, log, msg.thread_id);
-  }
-}
-
-export const toqChannel = {
-  id: CHANNEL_ID,
-  meta: {
-    id: CHANNEL_ID,
-    label: "toq protocol",
-    selectionLabel: "toq protocol (agent-to-agent)",
-    blurb: "Secure agent-to-agent communication via toq protocol",
-    aliases: ["toq-protocol"],
-  },
-  capabilities: { chatTypes: ["direct"] as const },
-  config: {
-    listAccountIds: (cfg: any) => Object.keys(cfg.channels?.toq?.accounts ?? {}),
-    resolveAccount: (cfg: any, id?: string) =>
-      cfg.channels?.toq?.accounts?.[id ?? "default"] ?? { accountId: id ?? "default" },
-  },
-  setup: {
-    applyAccountConfig: (ctx: any) => {
-      const cfg = ctx.cfg;
-      const accountId = ctx.accountId ?? "default";
-      cfg.channels ??= {};
-      cfg.channels.toq ??= {};
-      cfg.channels.toq.accounts ??= {};
-      cfg.channels.toq.accounts[accountId] = { ...cfg.channels.toq.accounts[accountId], enabled: true };
-      return cfg;
-    },
-  },
-  gateway: {
-    startAccount: async (ctx: any) => {
-      const accountId = ctx.accountId ?? "default";
-      const apiUrl = ctx.account?.apiUrl ?? ctx.cfg?.channels?.toq?.apiUrl ?? DEFAULT_API_URL;
-      const log = ctx.log ?? console;
-      const cfg = ctx.cfg;
-      const state = getAccount(accountId);
-
-      // Learn local address to filter outbound messages
-      try {
-        const client = connect(apiUrl);
-        const status = await client.status() as any;
-        state.localAddress = status?.address ?? "";
-        log.info?.(`[toq:${accountId}] local address: ${state.localAddress}`);
-      } catch {}
-
-      // Connect to toq SSE for inbound messages
-      const es = new EventSource(`${apiUrl}/v1/messages`);
-      log.info?.(`[toq:${accountId}] SSE connected to ${apiUrl}`);
-
-      es.onmessage = (event: any) => {
-        try {
-          const msg = JSON.parse(event.data);
-          handleMessage(accountId, msg, cfg, log);
-        } catch (err) {
-          const detail = err instanceof Error ? err.message : String(err);
-          log.error?.(`[toq:${accountId}] message error: ${detail}`);
-        }
-      };
-
-      es.onerror = () => {
-        log.warn?.(`[toq:${accountId}] SSE reconnecting...`);
-      };
-
-      // Block until abort
-      await new Promise<void>((resolve) => {
-        if (ctx.abortSignal?.aborted) { es.close(); return resolve(); }
-        ctx.abortSignal?.addEventListener("abort", () => {
-          es.close();
-          accounts.delete(accountId);
-          resolve();
-        }, { once: true });
-      });
-    },
-    stopAccount: async () => {},
-  },
-  outbound: {
-    deliveryMode: "direct" as const,
-    sendText: async ({ text, target }: { text: string; target: string }) => {
-      const client = connect();
-      await client.send(target, text);
-      return { ok: true };
-    },
-  },
-};
 
 export default function register(api: any): void {
-  pluginApi = api;
-  api.registerChannel({ plugin: toqChannel });
+  const log = api.logger;
+  const cfg = (api.pluginConfig ?? {}) as PluginConfig;
+
+  const endpoints: Record<string, EndpointConfig> = cfg.endpoints ?? {
+    default: { url: DEFAULT_DAEMON_URL },
+  };
+  const hooksToken = cfg.hooksToken ?? api.config?.hooks?.token ?? "";
+  const hooksUrl = cfg.hooksUrl ?? DEFAULT_HOOKS_URL;
+
+  const connections = new Map<string, EventSource>();
+  const clients = new Map<string, ReturnType<typeof connect>>();
+  const localAddresses = new Map<string, string>();
+  const streamBuffers = new Map<string, { from: string; text: string; threadId?: string }>();
+
+  // --- Service: SSE listener ---
+
+  api.registerService({
+    id: "toq-listener",
+    start: async () => {
+      for (const [name, ep] of Object.entries(endpoints)) {
+        const client = connect(ep.url);
+        clients.set(name, client);
+
+        try {
+          const status = (await client.status()) as any;
+          localAddresses.set(name, status?.address ?? "");
+          log.info?.(`[toq:${name}] local address: ${localAddresses.get(name)}`);
+        } catch {}
+
+        const es = new EventSource(`${ep.url}/v1/messages`);
+        connections.set(name, es);
+        log.info?.(`[toq:${name}] SSE connected to ${ep.url}`);
+
+        es.onmessage = (event: any) => {
+          try {
+            const msg = JSON.parse(event.data);
+            handleMessage(name, ep, msg);
+          } catch (err) {
+            log.error?.(`[toq:${name}] parse error: ${err}`);
+          }
+        };
+
+        es.onerror = () => {
+          log.warn?.(`[toq:${name}] SSE reconnecting...`);
+        };
+      }
+    },
+    stop: async () => {
+      for (const [name, es] of connections) {
+        es.close();
+        log.info?.(`[toq:${name}] disconnected`);
+      }
+      connections.clear();
+      clients.clear();
+      localAddresses.clear();
+      streamBuffers.clear();
+    },
+  });
+
+  // --- Tools ---
+
+  api.registerTool({
+    name: "toq_send",
+    description: "Send a toq message to a remote agent. Use this to reply to inbound toq messages or start new conversations.",
+    input: {
+      type: "object",
+      properties: {
+        address: { type: "string", description: "Remote agent address (e.g., toq://host/agent)" },
+        text: { type: "string", description: "Message text to send" },
+        thread_id: { type: "string", description: "Thread ID for continuing a conversation" },
+        endpoint: { type: "string", description: "Local endpoint name to send from (default: 'default')" },
+      },
+      required: ["address", "text"],
+    },
+    execute: async (args: any) => {
+      const client = clients.get(args.endpoint ?? "default");
+      if (!client) return { error: `Unknown endpoint: ${args.endpoint ?? "default"}` };
+      await client.send(args.address, args.text, args.thread_id ? { thread_id: args.thread_id } : undefined);
+      return { ok: true, sent_to: args.address };
+    },
+  });
+
+  api.registerTool({
+    name: "toq_status",
+    description: "Check the status of a toq endpoint daemon.",
+    input: {
+      type: "object",
+      properties: {
+        endpoint: { type: "string", description: "Endpoint name (default: 'default')" },
+      },
+    },
+    execute: async (args: any) => {
+      const client = clients.get(args.endpoint ?? "default");
+      if (!client) return { error: `Unknown endpoint: ${args.endpoint ?? "default"}` };
+      return await client.status();
+    },
+  });
+
+  api.registerTool({
+    name: "toq_peers",
+    description: "List known peers for a toq endpoint.",
+    input: {
+      type: "object",
+      properties: {
+        endpoint: { type: "string", description: "Endpoint name (default: 'default')" },
+      },
+    },
+    execute: async (args: any) => {
+      const client = clients.get(args.endpoint ?? "default");
+      if (!client) return { error: `Unknown endpoint: ${args.endpoint ?? "default"}` };
+      return await client.peers();
+    },
+  });
+
+  api.registerTool({
+    name: "toq_approve",
+    description: "Approve a pending toq connection request.",
+    input: {
+      type: "object",
+      properties: {
+        id: { type: "string", description: "Peer ID to approve" },
+        endpoint: { type: "string", description: "Endpoint name (default: 'default')" },
+      },
+      required: ["id"],
+    },
+    execute: async (args: any) => {
+      const client = clients.get(args.endpoint ?? "default");
+      if (!client) return { error: `Unknown endpoint: ${args.endpoint ?? "default"}` };
+      return await client.approve(args.id);
+    },
+  });
+
+  api.registerTool({
+    name: "toq_block",
+    description: "Block a toq peer from connecting.",
+    input: {
+      type: "object",
+      properties: {
+        id: { type: "string", description: "Peer ID to block" },
+        endpoint: { type: "string", description: "Endpoint name (default: 'default')" },
+      },
+      required: ["id"],
+    },
+    execute: async (args: any) => {
+      const client = clients.get(args.endpoint ?? "default");
+      if (!client) return { error: `Unknown endpoint: ${args.endpoint ?? "default"}` };
+      return await client.block(args.id);
+    },
+  });
+
+  // --- Message handling ---
+
+  function handleMessage(name: string, ep: EndpointConfig, msg: any): void {
+    const local = localAddresses.get(name) ?? "";
+    if (local && msg.from?.includes(local)) return;
+
+    const body = msg.body as Record<string, unknown> | undefined;
+
+    if (msg.type === "message.stream.chunk") {
+      const streamId = body?.stream_id as string;
+      if (!streamId) return;
+      const buf = streamBuffers.get(streamId) ?? { from: msg.from, text: "", threadId: msg.thread_id };
+      buf.text += (body?.data as any)?.text ?? "";
+      streamBuffers.set(streamId, buf);
+      return;
+    }
+
+    if (msg.type === "message.stream.end") {
+      const streamId = body?.stream_id as string;
+      if (!streamId) return;
+      const buf = streamBuffers.get(streamId);
+      streamBuffers.delete(streamId);
+      const finalChunk = (body?.data as any)?.text ?? "";
+      const fullText = (buf?.text ?? "") + finalChunk;
+      if (fullText) dispatch(name, ep, buf?.from ?? msg.from, fullText, buf?.threadId);
+      return;
+    }
+
+    if (msg.type === "message.send") {
+      const text = body?.text as string;
+      if (text) dispatch(name, ep, msg.from, text, msg.thread_id);
+    }
+  }
+
+  async function dispatch(name: string, ep: EndpointConfig, from: string, text: string, threadId?: string): Promise<void> {
+    const trigger = `[toq-inbound] endpoint=${name} from=${from}${threadId ? ` thread=${threadId}` : ""} text=${text}`;
+    const payload: Record<string, unknown> = {
+      message: trigger,
+      name: from,
+    };
+    if (ep.agentId) payload.agentId = ep.agentId;
+
+    try {
+      const res = await fetch(`${hooksUrl}/hooks/agent`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${hooksToken}`,
+        },
+        body: JSON.stringify(payload),
+      });
+      const result = (await res.json()) as any;
+      if (!result.ok) log.error?.(`[toq:${name}] hooks error: ${result.error}`);
+      else log.info?.(`[toq:${name}] dispatched from ${from}`);
+    } catch (err) {
+      log.error?.(`[toq:${name}] dispatch failed: ${err}`);
+    }
+  }
 }

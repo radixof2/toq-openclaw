@@ -7,17 +7,7 @@
   "openclaw": {
     "extensions": [
       "./src/index.ts"
-    ],
-    "channel": {
-      "id": "toq",
-      "label": "toq protocol",
-      "selectionLabel": "toq protocol (agent-to-agent)",
-      "blurb": "Secure agent-to-agent communication via toq protocol",
-      "aliases": [
-        "toq-protocol"
-      ],
-      "order": 80
-    }
+    ]
   },
   "scripts": {
     "test": "vitest run"

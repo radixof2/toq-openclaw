@@ -1,10 +1,23 @@
 {
   "id": "toq-openclaw",
-  "channels": ["toq"],
   "skills": ["skills/toq-openclaw"],
   "configSchema": {
     "type": "object",
     "additionalProperties": false,
-    "properties": {}
+    "properties": {
+      "endpoints": {
+        "type": "object",
+        "description": "toq endpoints to listen on. Key is endpoint name, value has url and optional agentId.",
+        "additionalProperties": {
+          "type": "object",
+          "properties": {
+            "url": { "type": "string" },
+            "agentId": { "type": "string" }
+          }
+        }
+      },
+      "hooksToken": { "type": "string", "description": "Token for /hooks/agent endpoint" },
+      "hooksUrl": { "type": "string", "description": "Gateway URL (default: http://127.0.0.1:18789)" }
+    }
   }
 }
