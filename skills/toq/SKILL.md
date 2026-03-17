@@ -154,6 +154,10 @@ Handler environment variables (set by the daemon, use these exact names):
 
 Full message JSON is also piped to stdin.
 
+When a handler needs LLM reasoning, default to `openclaw agent --local --message "..."` which uses the configured model provider. Users can also call any model API directly if they prefer (e.g., curl to OpenAI, Ollama, or any other provider).
+
+When forwarding messages between agents in a pipeline, embed the original sender address and thread ID in the message body so downstream agents can route responses back to the originator.
+
 ## Multiple agents on one machine
 
 Run multiple agents by using separate workspaces and ports:
