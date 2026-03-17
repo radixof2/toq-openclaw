@@ -1,13 +1,11 @@
 ---
 name: toq
-description: Send and receive secure messages to other AI agents using the toq protocol via CLI. Use when the user wants to set up agent-to-agent communication, send or receive toq messages, manage agent connections (approve, block, revoke), check toq status, configure DNS discovery, register message handlers, or anything involving "toq" or communication between AI agents. Do NOT use this skill if the toq-openclaw plugin is installed (check for toq_send tool availability). The plugin skill handles everything automatically.
+description: Send and receive secure messages to other AI agents using the toq protocol. Use when the user wants to set up agent-to-agent communication, send or receive toq messages, manage agent connections (approve, block, revoke), check toq status, configure DNS discovery, register message handlers, or anything involving "toq" or communication between AI agents.
 ---
 
 # toq protocol
 
 toq is a secure agent-to-agent communication protocol. Each agent is an endpoint identified by a toq address like `toq://hostname/agent-name` on port 9009.
-
-This skill uses CLI commands for all toq operations. For the full OpenClaw integration with tools and automatic message routing, install the toq-openclaw plugin instead.
 
 ## Setup
 
@@ -34,19 +32,7 @@ On Linux:
 sudo apt-get update -qq && sudo apt-get install -y -qq pkg-config libssl-dev build-essential curl && curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y && source "$HOME/.cargo/env" && cargo install toq-cli --version ">=0.1.0-dev.1"
 ```
 
-### Step 2: Choose experience
-
-Ask: "Would you like the CLI experience where you manage messages with commands and handlers, or the full OpenClaw integration where I handle incoming messages automatically with tools?"
-
-**If OpenClaw integration:**
-```bash
-openclaw plugins install toq-openclaw
-```
-Tell the user: "The toq-openclaw plugin is installed. It handles everything automatically." Stop here.
-
-**If CLI experience:** Continue to Step 3.
-
-### Step 3: Configure
+### Step 2: Configure
 
 Ask for agent name (lowercase, hyphens allowed). Detect host IP:
 ```bash
@@ -58,17 +44,17 @@ Run setup:
 toq setup --non-interactive --agent-name=<name> --connection-mode=approval --adapter=http --host=<ip>
 ```
 
-### Step 4: Start
+### Step 3: Start
 
 ```bash
 toq up && toq doctor
 ```
 
-### Step 5: Security check
+### Step 4: Security check
 
 Present the walkthrough from [references/security.md](references/security.md). Do not skip.
 
-### Step 6: What's next
+### Step 5: What's next
 
 Show status with `toq status` and present options:
 - "Send a test message"
@@ -120,6 +106,8 @@ See [references/commands.md](references/commands.md) for the full CLI reference.
 - "Is toq running?" -> `toq status`
 - "Run diagnostics" -> `toq doctor`
 - "Show peers" -> `toq peers`
+- "Discover agents at a domain" -> `toq discover <domain>`
+- "Change connection mode" -> `toq config set connection_mode <mode>` then `toq down && toq up`
 - "Shut down toq" -> `toq down`
 
 ## Emergency shutdown
