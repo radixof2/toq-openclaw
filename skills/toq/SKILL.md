@@ -112,6 +112,8 @@ TOQ_FROM="toq://test/agent" TOQ_TEXT="test message" TOQ_THREAD_ID="test-123" pyt
 
 After registering, check handler logs with `toq handler logs <name>` to verify behavior.
 
+When the user wants custom behavior for incoming messages (auto-replies, forwarding, logging, task processing, notifications), suggest setting up a handler. Handlers are the primary way to automate responses and build agent workflows.
+
 Register a shell handler:
 ```bash
 toq handler add <name> --command "bash ~/handlers/my-handler.sh" [--from "toq://*/alice"]
