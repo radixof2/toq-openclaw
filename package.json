@@ -18,6 +18,7 @@
     "skills/toq-openclaw"
   ],
   "dependencies": {
+    "@sinclair/typebox": "^0.34.48",
     "@toqprotocol/toq": ">=0.1.0-dev.1",
     "eventsource": "^4.1.0"
   },

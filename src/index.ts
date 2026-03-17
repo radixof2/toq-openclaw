@@ -1,5 +1,6 @@
 import { connect } from "@toqprotocol/toq";
 import { EventSource } from "eventsource";
+import { Type } from "@sinclair/typebox";
 
 const DEFAULT_DAEMON_URL = "http://127.0.0.1:9009";
 const DEFAULT_HOOKS_URL = "http://127.0.0.1:18789";
@@ -80,16 +81,12 @@ export default function register(api: any): void {
   api.registerTool({
     name: "toq_send",
     description: "Send a toq message to a remote agent. Use this to reply to inbound toq messages or start new conversations.",
-    input: {
-      type: "object",
-      properties: {
-        address: { type: "string", description: "Remote agent address (e.g., toq://host/agent)" },
-        text: { type: "string", description: "Message text to send" },
-        thread_id: { type: "string", description: "Thread ID for continuing a conversation" },
-        endpoint: { type: "string", description: "Local endpoint name to send from (default: 'default')" },
-      },
-      required: ["address", "text"],
-    },
+    input: Type.Object({
+      address: Type.String({ description: "Remote agent address (e.g., toq://host/agent)" }),
+      text: Type.String({ description: "Message text to send" }),
+      thread_id: Type.Optional(Type.String({ description: "Thread ID for continuing a conversation" })),
+      endpoint: Type.Optional(Type.String({ description: "Local endpoint name to send from (default: 'default')" })),
+    }),
     execute: async (args: any) => {
       const client = clients.get(args.endpoint ?? "default");
       if (!client) return { error: `Unknown endpoint: ${args.endpoint ?? "default"}` };
@@ -101,13 +98,9 @@ export default function register(api: any): void {
   api.registerTool({
     name: "toq_status",
     description: "Check the status of a toq endpoint daemon.",
-    input: {
-      type: "object",
-      properties: {
-        endpoint: { type: "string", description: "Endpoint name (default: 'default')" },
-      },
-      required: [],
-    },
+    input: Type.Object({
+      endpoint: Type.Optional(Type.String({ description: "Endpoint name (default: 'default')" })),
+    }),
     execute: async (args: any) => {
       const client = clients.get(args.endpoint ?? "default");
       if (!client) return { error: `Unknown endpoint: ${args.endpoint ?? "default"}` };
@@ -118,13 +111,9 @@ export default function register(api: any): void {
   api.registerTool({
     name: "toq_peers",
     description: "List known peers for a toq endpoint.",
-    input: {
-      type: "object",
-      properties: {
-        endpoint: { type: "string", description: "Endpoint name (default: 'default')" },
-      },
-      required: [],
-    },
+    input: Type.Object({
+      endpoint: Type.Optional(Type.String({ description: "Endpoint name (default: 'default')" })),
+    }),
     execute: async (args: any) => {
       const client = clients.get(args.endpoint ?? "default");
       if (!client) return { error: `Unknown endpoint: ${args.endpoint ?? "default"}` };
@@ -135,14 +124,10 @@ export default function register(api: any): void {
   api.registerTool({
     name: "toq_approve",
     description: "Approve a pending toq connection request.",
-    input: {
-      type: "object",
-      properties: {
-        id: { type: "string", description: "Peer ID to approve" },
-        endpoint: { type: "string", description: "Endpoint name (default: 'default')" },
-      },
-      required: ["id"],
-    },
+    input: Type.Object({
+      id: Type.String({ description: "Peer ID to approve" }),
+      endpoint: Type.Optional(Type.String({ description: "Endpoint name (default: 'default')" })),
+    }),
     execute: async (args: any) => {
       const client = clients.get(args.endpoint ?? "default");
       if (!client) return { error: `Unknown endpoint: ${args.endpoint ?? "default"}` };
@@ -153,14 +138,10 @@ export default function register(api: any): void {
   api.registerTool({
     name: "toq_block",
     description: "Block a toq peer from connecting.",
-    input: {
-      type: "object",
-      properties: {
-        id: { type: "string", description: "Peer ID to block" },
-        endpoint: { type: "string", description: "Endpoint name (default: 'default')" },
-      },
-      required: ["id"],
-    },
+    input: Type.Object({
+      id: Type.String({ description: "Peer ID to block" }),
+      endpoint: Type.Optional(Type.String({ description: "Endpoint name (default: 'default')" })),
+    }),
     execute: async (args: any) => {
       const client = clients.get(args.endpoint ?? "default");
       if (!client) return { error: `Unknown endpoint: ${args.endpoint ?? "default"}` };
